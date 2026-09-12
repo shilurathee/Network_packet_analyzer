@@ -1,0 +1,9 @@
+1. Create a virtual environment
+2. add project to github
+cd /path/to/new-project
+git init 
+git add .
+git commit -m "Replace repo content"
+git remote add origin https://github.com/username/repo.git
+git branch -M main
+git push -f origin main   #-f to force 
