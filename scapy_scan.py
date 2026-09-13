@@ -1,7 +1,7 @@
-from scapy import dadict
+
 print("i am scapy processor")
 def process_pcap(filename):
-    from scapy.all import rdpcap,IP,TCP,UDP
+    from scapy.all import rdpcap,IP,TCP,UDP,sniff
     import pandas as pd
 
     packets=rdpcap(filename)
@@ -11,8 +11,10 @@ def process_pcap(filename):
     ipdst=[]
     tcpsrc=[]
     tcpdst=[]
-    udpsrc =[]
+    udpsrc=[]
     udpdst=[]
+    timestamp=[]
+   
     for packet in packets:
         if packet.haslayer(IP):
             ipsrc.append(packet[IP].src)
@@ -33,15 +35,16 @@ def process_pcap(filename):
         else:
             udpsrc.append(None)
             udpdst.append(None)
+        timestamp.append(packet.time)
 
-    dictionary={}
     dictionary={
         "ipsrc": ipsrc,
         "ipdst": ipdst,
         "tcpsrc": tcpsrc,
         "tcpdst": tcpdst,
         "udpsrc": udpsrc,
-        "udpdst": udpdst
+        "udpdst": udpdst,
+        "timestamp": timestamp  
         }
 
     #print(dictionary)
