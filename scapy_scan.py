@@ -86,6 +86,7 @@ def process_pcap(filename):
     }
 
     dataframe = pd.DataFrame(dictionary)
+    dataframe.to_csv("data.csv",index=False)
     return dataframe
 
 
