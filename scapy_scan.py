@@ -1,54 +1,94 @@
+from scapy.all import rdpcap, IP, TCP, UDP, ARP, ICMP
+import pandas as pd
 
-print("i am scapy processor")
 def process_pcap(filename):
-    from scapy.all import rdpcap,IP,TCP,UDP,sniff
-    import pandas as pd
+    packets = rdpcap(filename)
 
-    packets=rdpcap(filename)
-    #packets.summary()
+    ipsrc, ipdst = [], []
+    tcpsrc, tcpdst, tcpflags = [], [], []
+    udpsrc, udpdst = [], []
+    icmp_type = []
+    arp_hwsrc, arp_psrc, arp_hwdst, arp_pdst = [], [], [], []
+    timestamp = []
+    packet_length = []
+    protocol = []
 
-    ipsrc=[]
-    ipdst=[]
-    tcpsrc=[]
-    tcpdst=[]
-    udpsrc=[]
-    udpdst=[]
-    timestamp=[]
-   
     for packet in packets:
+        packet_length.append(len(packet))
+        timestamp.append(packet.time)
+
         if packet.haslayer(IP):
             ipsrc.append(packet[IP].src)
             ipdst.append(packet[IP].dst)
-        else : 
+        else:
             ipsrc.append(None)
             ipdst.append(None)
-    
+
         if packet.haslayer(TCP):
             tcpsrc.append(packet[TCP].sport)
             tcpdst.append(packet[TCP].dport)
-        else : 
+            tcpflags.append(str(packet[TCP].flags))
+        else:
             tcpsrc.append(None)
             tcpdst.append(None)
+            tcpflags.append(None)
+
         if packet.haslayer(UDP):
             udpsrc.append(packet[UDP].sport)
             udpdst.append(packet[UDP].dport)
         else:
             udpsrc.append(None)
             udpdst.append(None)
-        timestamp.append(packet.time)
 
-    dictionary={
+        if packet.haslayer(ICMP):
+            icmp_type.append(packet[ICMP].type)
+        else:
+            icmp_type.append(None)
+
+        if packet.haslayer(ARP):
+            arp_hwsrc.append(packet[ARP].hwsrc)
+            arp_psrc.append(packet[ARP].psrc)
+            arp_hwdst.append(packet[ARP].hwdst)
+            arp_pdst.append(packet[ARP].pdst)
+        else:
+            arp_hwsrc.append(None)
+            arp_psrc.append(None)
+            arp_hwdst.append(None)
+            arp_pdst.append(None)
+
+        if packet.haslayer(TCP):
+            protocol.append("TCP")
+        elif packet.haslayer(UDP):
+            protocol.append("UDP")
+        elif packet.haslayer(ICMP):
+            protocol.append("ICMP")
+        elif packet.haslayer(ARP):
+            protocol.append("ARP")
+        else:
+            protocol.append("OTHER")
+
+    dictionary = {
+        "timestamp": timestamp,
+        "protocol": protocol,
+        "packet_length": packet_length,
         "ipsrc": ipsrc,
         "ipdst": ipdst,
         "tcpsrc": tcpsrc,
         "tcpdst": tcpdst,
+        "tcpflags": tcpflags,
         "udpsrc": udpsrc,
         "udpdst": udpdst,
-        "timestamp": timestamp  
-        }
+        "icmp_type": icmp_type,
+        "arp_hwsrc": arp_hwsrc,
+        "arp_psrc": arp_psrc,
+        "arp_hwdst": arp_hwdst,
+        "arp_pdst": arp_pdst,
+    }
 
-    #print(dictionary)
-    dataframe=pd.DataFrame(dictionary)
-    dataframe.to_csv("dic.csv",index=False)
-    #print(type(dic.csv))
-    return "dic.csv"
+    dataframe = pd.DataFrame(dictionary)
+    return dataframe
+
+
+if __name__ == "__main__":
+    df = process_pcap("sample_pcap.pcap")
+    #print(df)

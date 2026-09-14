@@ -1,6 +1,9 @@
-import duckdb
 
-print("duck db version : ",duckdb.__version__)
-result = duckdb.sql("SELECT 10 + 20")
+import duckdb,pandas as pd
 
-print(result.fetchall())
+def resolve(dataframe):
+    con =duckdb.connect("network_data.duckdb")
+    
+    df=dataframe
+    con.execute(create table packet_table as select * from df)
+    

@@ -4,7 +4,11 @@
   "terminal.integrated.profiles.windows": {
     "PowerShell": {
       "source": "PowerShell",
-      "args": ["-ExecutionPolicy", "Bypass"]
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass"
+      ]
     }
-  }
+  },
+  "clangd.enableCodeCompletion": false
 }
