@@ -91,5 +91,5 @@ def process_pcap(filename):
 
 
 if __name__ == "__main__":
-    df = process_pcap("sample_pcap.pcap")
-    #print(df)
+    df = process_pcap("test_traffic.pcap")
+    print(df)

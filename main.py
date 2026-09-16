@@ -7,16 +7,16 @@ def scan_scapy(filename):
     #print(type(return_file))
     return return_file
 
-
+'''
 def database(dataframe):
     from database import resolve
     resolve(dataframe)
-
+'''
 
     
 def main():
-    dataframe=scan_scapy("sample_pcap.pcap")
-    database(dataframe)
+    dataframe=scan_scapy("test_traffic.pcap")
+    #database(dataframe)
 
 
 
