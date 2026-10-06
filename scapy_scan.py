@@ -86,10 +86,11 @@ def process_pcap(filename):
     }
 
     dataframe = pd.DataFrame(dictionary)
+    print(dataframe.describe())
     dataframe.to_csv("data.csv",index=False)
     return dataframe
 
 
 if __name__ == "__main__":
     df = process_pcap("test_traffic.pcap")
-    print(df)
+    #print(df)
