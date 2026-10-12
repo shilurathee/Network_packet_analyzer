@@ -43,7 +43,7 @@ def detect_arp_spoofing(con):
     """).df()
 
 
-def detect_dns_tunneling(con, size_threshold=150):
+def detect_dns_tunneling(con, size_threshold=100):
     """DNS traffic (udp port 53) with abnormally large packet size -
        normal lookups are small; tunneled data inflates packet length."""
     return con.execute(f"""
