@@ -1,9 +1,7 @@
 import duckdb
 
-
 def detect_port_scan_and_syn_flood(con):
-    """One query classifies both, based on unique_ports:
-       unique_ports == 1  -> SYN flood
+    """unique_ports == 1  -> SYN flood
        unique_ports > 1   -> Port scan
     """
     return con.execute("""
