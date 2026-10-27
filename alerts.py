@@ -9,6 +9,7 @@ from detector import (
     detect_malformed_flags,
 )
 from mitre_mapping import MITRE_MAP
+from enrichment import enrich_alerts
 
 COLUMNS = ["ipsrc", "detection_type", "mitre_technique", "details"]
 
@@ -25,10 +26,10 @@ def _finish(df, detection_type):
     return df[COLUMNS]
 
 
-def build_alerts(con):
+def build_alerts(con, enrich: bool = True, include_virustotal: bool = False):
     parts = []
 
-    # --- Port scan vs SYN flood (same query, classified by unique_ports) ---
+    #  Port scan vs SYN flood (classified by unique_ports) 
     syn = detect_port_scan_and_syn_flood(con)
     if not syn.empty:
         syn["details"] = (
@@ -75,11 +76,16 @@ def build_alerts(con):
     parts = [p for p in parts if not p.empty]
     if not parts:
         return pd.DataFrame(columns=COLUMNS)
-    return pd.concat(parts, ignore_index=True)
+    alerts_df = pd.concat(parts, ignore_index=True)
+    if enrich:
+        alerts_df = enrich_alerts(alerts_df, include_virustotal=include_virustotal)
+    return alerts_df
 
 
 def save_alerts(con, alerts_df):
-    con.execute("CREATE OR REPLACE TABLE alerts AS SELECT * FROM alerts_df")
+    con.register("alerts_temp", alerts_df)
+    con.execute("CREATE OR REPLACE TABLE alerts AS SELECT * FROM alerts_temp")
+    con.unregister("alerts_temp")
 
 
 if __name__ == "__main__":

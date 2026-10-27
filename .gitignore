@@ -7,3 +7,10 @@ venv/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Environment variables & secrets
+.env
+
+# GeoIP database files & DuckDB
+*.mmdb
+*.duckdb

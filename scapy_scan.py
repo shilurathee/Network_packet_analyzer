@@ -1,9 +1,11 @@
-from scapy.all import rdpcap, IP, TCP, UDP, ARP, ICMP
+import time
 import pandas as pd
+from typing import Optional, List
+from scapy.all import rdpcap, sniff, wrpcap, IP, TCP, UDP, ARP, ICMP
 
-def process_pcap(filename):
-    packets = rdpcap(filename)
 
+def extract_packet_data(packets) -> pd.DataFrame:
+    """Extract structured feature vectors from a collection of Scapy packets."""
     ipsrc, ipdst = [], []
     tcpsrc, tcpdst, tcpflags = [], [], []
     udpsrc, udpdst = [], []
@@ -15,7 +17,7 @@ def process_pcap(filename):
 
     for packet in packets:
         packet_length.append(len(packet))
-        timestamp.append(packet.time)
+        timestamp.append(float(packet.time) if hasattr(packet, "time") else time.time())
 
         if packet.haslayer(IP):
             ipsrc.append(packet[IP].src)
@@ -86,11 +88,74 @@ def process_pcap(filename):
     }
 
     dataframe = pd.DataFrame(dictionary)
-    print(dataframe.describe())
-    dataframe.to_csv("data.csv",index=False)
+    # Explicitly enforce string dtypes so DuckDB never infers INT32 for empty/NULL columns
+    for col in ["protocol", "ipsrc", "ipdst", "tcpflags", "arp_hwsrc", "arp_psrc", "arp_hwdst", "arp_pdst"]:
+        dataframe[col] = dataframe[col].astype("string")
+
+    dataframe.to_csv("data.csv", index=False)
     return dataframe
+
+
+def process_pcap(filename: str) -> pd.DataFrame:
+    """Read packets from an offline .pcap file and extract feature vectors."""
+    print(f"[*] Reading packets from file: '{filename}'...")
+    packets = rdpcap(filename)
+    return extract_packet_data(packets)
+
+
+def capture_live_traffic(
+    count: int = 100,
+    timeout: int = 30,
+    iface: Optional[str] = None,
+    bpf_filter: Optional[str] = None,
+    save_pcap_path: Optional[str] = "live_capture.pcap",
+) -> pd.DataFrame:
+    """
+    Capture live network traffic from an interface and extract feature vectors.
+
+    Args:
+        count: Number of packets to capture (0 for unlimited until timeout).
+        timeout: Stop sniffing after this many seconds.
+        iface: Network interface name (optional, Scapy defaults to default interface).
+        bpf_filter: Berkeley Packet Filter string (e.g. 'ip or arp').
+        save_pcap_path: Optional path to save the captured packets as a .pcap file.
+    """
+    print(
+        f"[*] Starting live traffic capture (count={count}, timeout={timeout}s, iface={iface or 'default'})..."
+    )
+
+    sniff_kwargs = {}
+    if count and count > 0:
+        sniff_kwargs["count"] = count
+    if timeout and timeout > 0:
+        sniff_kwargs["timeout"] = timeout
+    if iface:
+        sniff_kwargs["iface"] = iface
+    if bpf_filter:
+        sniff_kwargs["filter"] = bpf_filter
+
+    packets = sniff(**sniff_kwargs)
+    print(f"[+] Captured {len(packets)} live packets.")
+
+    if save_pcap_path and len(packets) > 0:
+        try:
+            wrpcap(save_pcap_path, packets)
+            print(f"[+] Saved raw capture to '{save_pcap_path}'.")
+        except Exception as e:
+            print(f"[!] Could not save pcap to '{save_pcap_path}': {e}")
+
+    return extract_packet_data(packets)
+
+
+def get_network_interfaces() -> List[str]:
+    """Retrieve available network interface names on the host."""
+    try:
+        from scapy.all import get_if_list
+        return get_if_list()
+    except Exception:
+        return []
 
 
 if __name__ == "__main__":
     df = process_pcap("test_traffic.pcap")
-    #print(df)
+    print(df.describe())

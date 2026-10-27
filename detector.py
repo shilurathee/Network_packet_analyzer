@@ -9,7 +9,7 @@ def detect_port_scan_and_syn_flood(con):
                COUNT(*) AS total_syns,
                COUNT(DISTINCT tcpdst) AS unique_ports
         FROM connections
-        WHERE tcpflags = 'S'
+        WHERE CAST(tcpflags AS VARCHAR) = 'S'
         GROUP BY ipsrc
         HAVING total_syns > 5
         ORDER BY total_syns DESC
@@ -63,8 +63,8 @@ def detect_malformed_flags(con):
     return con.execute("""
         SELECT ipsrc, ipdst, tcpflags, timestamp
         FROM connections
-        WHERE tcpflags LIKE '%S%'
-          AND tcpflags LIKE '%F%'
+        WHERE CAST(tcpflags AS VARCHAR) LIKE '%S%'
+          AND CAST(tcpflags AS VARCHAR) LIKE '%F%'
     """).df()
 
 

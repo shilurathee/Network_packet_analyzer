@@ -1,0 +1,7 @@
+scapy>=2.5.0
+duckdb>=0.9.0
+pandas>=2.0.0
+streamlit>=1.28.0
+requests>=2.31.0
+geoip2>=4.8.0
+python-dotenv>=1.0.0
