@@ -6,11 +6,18 @@ No packets are transmitted or captured from a network.
 """
 
 import argparse
+import hashlib
 import json
 import random
 from pathlib import Path
 
 from scapy.all import ARP, DNS, DNSQR, ICMP, IP, TCP, UDP, Ether, Raw, wrpcap
+
+
+def _mac_for_ip(seed, ip, variant=0):
+    """Map a seeded IP and variant to a fixed, locally administered MAC."""
+    digest = hashlib.sha256(f"{seed}:{ip}:{variant}".encode("ascii")).digest()
+    return "02:" + ":".join(f"{octet:02x}" for octet in digest[:5])
 
 
 def generate(seed, normal_packets, handshakes, noisy):
@@ -20,6 +27,15 @@ def generate(seed, normal_packets, handshakes, noisy):
     labels = []
 
     def add(packet):
+        # Set both Ethernet addresses before serialization: Scapy must never
+        # ask the host to resolve a destination MAC, even for ARP frames.
+        if packet.haslayer(IP):
+            source, destination = packet[IP].src, packet[IP].dst
+            packet[Ether].src = _mac_for_ip(seed, source)
+        else:
+            source, destination = packet[ARP].psrc, packet[ARP].pdst
+            packet[Ether].src = packet[ARP].hwsrc
+        packet[Ether].dst = _mac_for_ip(seed, destination)
         packet.time = 1_700_000_000 + len(packets) * 0.01
         packets.append(packet)
 
@@ -51,7 +67,7 @@ def generate(seed, normal_packets, handshakes, noisy):
     attack("10.0.0.77", "icmp_flood", [Ether() / IP(src="10.0.0.77", dst="10.2.0.1")
            / ICMP(type=8) for _ in range(21)])
     attack("10.0.0.1", "arp_spoofing", [Ether() / ARP(psrc="10.0.0.1",
-           hwsrc=f"02:00:00:00:00:{i:02x}") for i in (1, 2)])
+           pdst="10.2.0.1", hwsrc=_mac_for_ip(seed, "10.0.0.1", i)) for i in (1, 2)])
     attack("10.0.0.88", "dns_tunneling", [Ether() / IP(src="10.0.0.88", dst="10.2.0.1")
            / UDP(dport=53) / DNS(rd=1, qd=DNSQR(qname=("x" * 50 + ".example.test")))
            / Raw(load=b"x" * 90) for _ in range(3)])
