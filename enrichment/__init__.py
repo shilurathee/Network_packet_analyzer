@@ -31,17 +31,20 @@ def _init_env():
 _init_env()
 
 from enrichment.abuseipdb import AbuseIPDBClient, check_ip_reputation
-from enrichment.virustotal import VirusTotalClient, check_virustotal_ip
+from enrichment.virustotal import VirusTotalClient, VTDuckDBCache, check_virustotal_ip
 from enrichment.geoip import GeoIPLookup, get_ip_location
-from enrichment.enricher import ThreatEnricher, enrich_alerts
+from enrichment.enricher import ThreatEnricher, enrich_alerts, persist_ip_reputation
 
 __all__ = [
     "AbuseIPDBClient",
     "check_ip_reputation",
     "VirusTotalClient",
+    "VTDuckDBCache",
     "check_virustotal_ip",
     "GeoIPLookup",
     "get_ip_location",
     "ThreatEnricher",
     "enrich_alerts",
+    "persist_ip_reputation",
 ]
+

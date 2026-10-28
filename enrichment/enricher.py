@@ -1,8 +1,86 @@
+import ipaddress
 import pandas as pd
+import duckdb
 from typing import Dict, Any, Optional
 from enrichment.abuseipdb import AbuseIPDBClient
 from enrichment.virustotal import VirusTotalClient
 from enrichment.geoip import GeoIPLookup
+
+
+def _is_private_ip(ip: str) -> bool:
+    """Return True if ip is a non-routable (private/loopback/link-local) address."""
+    try:
+        return not ipaddress.ip_address(ip.strip()).is_global
+    except ValueError:
+        return True
+
+
+def _ensure_ip_reputation_table(con: duckdb.DuckDBPyConnection) -> None:
+    """
+    Create the ip_reputation table if it does not exist, and run column migrations
+    so that existing databases (created before lat/lon/city were added) keep working.
+    """
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS ip_reputation (
+            ip           VARCHAR PRIMARY KEY,
+            abuse_score  INTEGER DEFAULT 0,
+            total_reports INTEGER DEFAULT 0,
+            country      VARCHAR,
+            city         VARCHAR,
+            isp          VARCHAR,
+            latitude     DOUBLE,
+            longitude    DOUBLE,
+            status       VARCHAR DEFAULT 'checked'
+        )
+    """)
+    for col, dtype in [("latitude", "DOUBLE"), ("longitude", "DOUBLE"), ("city", "VARCHAR")]:
+        try:
+            con.execute(f"ALTER TABLE ip_reputation ADD COLUMN IF NOT EXISTS {col} {dtype}")
+        except Exception:
+            pass
+
+
+def persist_ip_reputation(con: duckdb.DuckDBPyConnection, alerts_df: pd.DataFrame) -> None:
+    """
+    Upsert geo + abuse enrichment for each unique alert IP into the ip_reputation table.
+    Private IPs are stored with status='internal' and will not be sent to external APIs.
+
+    Inputs:  DuckDB connection (read-write), enriched alerts DataFrame.
+    Outputs: Rows inserted/updated in ip_reputation table (no return value).
+    """
+    if alerts_df.empty or "ipsrc" not in alerts_df.columns:
+        return
+    _ensure_ip_reputation_table(con)
+
+    seen: set = set()
+    for _, row in alerts_df.iterrows():
+        ip = str(row.get("ipsrc", "") or "")
+        if not ip or ip in seen:
+            continue
+        seen.add(ip)
+
+        status       = "internal" if _is_private_ip(ip) else "checked"
+        abuse_score  = int(row.get("abuse_score", 0) or 0)
+        country      = str(row.get("country",     "") or "")
+        city         = str(row.get("city",        "") or "")
+        isp          = str(row.get("isp",         "") or "")
+        latitude     = row.get("latitude")  if pd.notna(row.get("latitude"))  else None
+        longitude    = row.get("longitude") if pd.notna(row.get("longitude")) else None
+
+        try:
+            con.execute("DELETE FROM ip_reputation WHERE ip = ?", [ip])
+            con.execute(
+                """
+                INSERT INTO ip_reputation
+                    (ip, abuse_score, total_reports, country, city, isp,
+                     latitude, longitude, status)
+                VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?)
+                """,
+                [ip, abuse_score, country, city, isp, latitude, longitude, status],
+            )
+        except Exception:
+            pass
+
 
 
 class ThreatEnricher:

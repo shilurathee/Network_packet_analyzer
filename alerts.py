@@ -9,7 +9,7 @@ from detector import (
     detect_malformed_flags,
 )
 from mitre_mapping import MITRE_MAP
-from enrichment import enrich_alerts
+from enrichment import enrich_alerts, persist_ip_reputation
 
 COLUMNS = ["ipsrc", "detection_type", "mitre_technique", "details"]
 
@@ -79,6 +79,7 @@ def build_alerts(con, enrich: bool = True, include_virustotal: bool = False):
     alerts_df = pd.concat(parts, ignore_index=True)
     if enrich:
         alerts_df = enrich_alerts(alerts_df, include_virustotal=include_virustotal)
+        persist_ip_reputation(con, alerts_df)  # store lat/lon/abuse in ip_reputation table
     return alerts_df
 
 

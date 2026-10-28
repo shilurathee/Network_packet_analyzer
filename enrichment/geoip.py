@@ -1,9 +1,36 @@
-import os
+"""
+enrichment/geoip.py — IP geolocation via local MaxMind GeoLite2.
+
+What it does:
+  Maps a public IP to country, city, latitude and longitude so the dashboard
+  can plot attackers. Private IPs are labelled internal and never looked up.
+
+Why it exists:
+  Abuse scores alone do not show *where* traffic came from. A local MMDB
+  file avoids a paid GeoIP API for every alert.
+
+Inputs:  IP string; optional path from GEOIP_DB_PATH (default
+         data/GeoLite2-City.mmdb).
+Outputs: dict with country_name, country_code, city, latitude, longitude,
+         time_zone, provider, status.
+
+The GeoLite2 file is licensed by MaxMind and must not be committed.
+If it is missing, one warning is logged and lookups continue without
+coordinates (optional ip-api.com fallback for demos).
+"""
+from __future__ import annotations
+
 import ipaddress
+import logging
+import os
+from typing import Any, Dict, Optional
+
 import requests
-from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MMDB_PATH = os.path.join("data", "GeoLite2-City.mmdb")
+_MISSING_MMDB_WARNED = False
 
 
 class GeoIPLookup:
@@ -15,32 +42,37 @@ class GeoIPLookup:
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._init_reader()
 
-    def _init_reader(self):
-        """Attempt to load the MaxMind geoip2 reader if the database and package exist."""
-        if os.path.exists(self.mmdb_path):
-            try:
-                import importlib
-                geoip2_db = importlib.import_module("geoip2.database")
-                self._reader = geoip2_db.Reader(self.mmdb_path)
-            except (ImportError, ModuleNotFoundError):
-                self._reader = None
-            except Exception:
-                self._reader = None
-        else:
+    def _init_reader(self) -> None:
+        """Load the MaxMind reader if the database and geoip2 package exist."""
+        global _MISSING_MMDB_WARNED
+        if not os.path.exists(self.mmdb_path):
+            if not _MISSING_MMDB_WARNED:
+                logger.warning(
+                    "GeoLite2 database not found at %s. "
+                    "Map points will be empty unless HTTP fallback succeeds. "
+                    "See README for MaxMind download steps.",
+                    self.mmdb_path,
+                )
+                _MISSING_MMDB_WARNED = True
+            self._reader = None
+            return
+        try:
+            import importlib
+
+            geoip2_db = importlib.import_module("geoip2.database")
+            self._reader = geoip2_db.Reader(self.mmdb_path)
+        except (ImportError, ModuleNotFoundError):
+            logger.warning("geoip2 is not installed; GeoIP lookups will skip the local database.")
+            self._reader = None
+        except Exception:
+            logger.warning("Failed to open GeoLite2 database at %s.", self.mmdb_path, exc_info=True)
             self._reader = None
 
     def is_valid_public_ip(self, ip: str) -> bool:
-        """Check if an IP string is a valid public IP address."""
+        """Return True if the IP is globally routable."""
         try:
             ip_obj = ipaddress.ip_address(ip.strip())
-            return not (
-                ip_obj.is_private
-                or ip_obj.is_loopback
-                or ip_obj.is_multicast
-                or ip_obj.is_reserved
-                or ip_obj.is_unspecified
-                or ip_obj.is_link_local
-            )
+            return ip_obj.is_global
         except (ValueError, AttributeError):
             return False
 
@@ -49,14 +81,9 @@ class GeoIPLookup:
         Resolve IP to geographic location.
 
         Returns:
-            - country_name: e.g. 'United States'
-            - country_code: e.g. 'US'
-            - city: e.g. 'San Francisco'
-            - latitude: float or None
-            - longitude: float or None
-            - time_zone: e.g. 'America/Los_Angeles'
-            - provider: 'maxmind', 'ip-api', 'local', or 'unknown'
-            - status: 'success', 'private_ip', or 'not_found'
+            country_name, country_code, city, latitude, longitude, time_zone,
+            provider ('maxmind', 'ip-api', 'local', or 'unknown'),
+            status ('success', 'private_ip', or 'not_found').
         """
         if not ip or not isinstance(ip, str):
             return {"status": "invalid_input", "country_name": "Unknown"}
@@ -66,8 +93,12 @@ class GeoIPLookup:
         if ip in self._cache:
             return self._cache[ip]
 
-        # Handle private / local addresses
-        if not self.is_valid_public_ip(ip):
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+        except ValueError:
+            return {"status": "invalid_input", "country_name": "Unknown"}
+
+        if not ip_obj.is_global:
             result = {
                 "ip": ip,
                 "country_name": "Private Network",
@@ -82,7 +113,6 @@ class GeoIPLookup:
             self._cache[ip] = result
             return result
 
-        # 1. Try MaxMind Local Database (fastest, offline)
         if self._reader:
             try:
                 resp = self._reader.city(ip)
@@ -99,15 +129,22 @@ class GeoIPLookup:
                 }
                 self._cache[ip] = result
                 return result
-            except Exception:
-                pass
+            except Exception as exc:
+                address_not_found = False
+                try:
+                    from geoip2.errors import AddressNotFoundError
 
-        # 2. Fallback to free HTTP API (ip-api.com) for development/demonstration
+                    address_not_found = isinstance(exc, AddressNotFoundError)
+                except ImportError:
+                    address_not_found = False
+                if not address_not_found:
+                    logger.debug("MaxMind lookup failed for %s: %s", ip, exc)
+
         if allow_http_fallback:
             try:
                 res = requests.get(
                     f"http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,city,lat,lon,timezone",
-                    timeout=5,
+                    timeout=10,
                 )
                 if res.status_code == 200:
                     data = res.json()
@@ -125,10 +162,9 @@ class GeoIPLookup:
                         }
                         self._cache[ip] = result
                         return result
-            except Exception:
+            except requests.exceptions.RequestException:
                 pass
 
-        # If all lookups fail
         result = {
             "ip": ip,
             "country_name": "Unknown",
@@ -143,7 +179,7 @@ class GeoIPLookup:
         self._cache[ip] = result
         return result
 
-    def close(self):
+    def close(self) -> None:
         """Close the MaxMind database reader."""
         if self._reader:
             try:

@@ -4,10 +4,10 @@ import subprocess
 import argparse
 import duckdb
 import pandas as pd
+from dotenv import load_dotenv
 
 from scapy_scan import process_pcap, capture_live_traffic, get_network_interfaces
 from alerts import build_alerts, save_alerts
-from enrichment import ThreatEnricher
 
 DB_PATH = "test.duckdb"
 DEFAULT_PCAP = "test_traffic.pcap"
@@ -138,9 +138,10 @@ def ingest_packets(
             sys.exit(1)
     else:
         if not os.path.exists(pcap_path):
-            if os.path.exists("sample_pcap.pcap"):
-                print(f"[!] Warning: '{pcap_path}' not found, falling back to 'sample_pcap.pcap'")
-                pcap_path = "sample_pcap.pcap"
+            sample_fallback = os.path.join("tests", "data", "sample_pcap.pcap")
+            if os.path.exists(sample_fallback):
+                print(f"[!] Warning: '{pcap_path}' not found, falling back to '{sample_fallback}'")
+                pcap_path = sample_fallback
             else:
                 raise FileNotFoundError(f"PCAP file not found: {pcap_path}")
 
@@ -200,6 +201,7 @@ def launch_dashboard():
 
 
 def main():
+    load_dotenv()  # Load .env before anything reads environment variables
     print("=" * 60)
     print(" NETWORK TRAFFIC INTRUSION DETECTION PIPELINE")
     print("=" * 60)

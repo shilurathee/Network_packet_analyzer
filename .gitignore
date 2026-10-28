@@ -7,10 +7,31 @@ venv/
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
 
 # Environment variables & secrets
 .env
 
-# GeoIP database files & DuckDB
-*.mmdb
+# Database & cache files
 *.duckdb
+*.duckdb.wal
+cache.duckdb
+
+# Packet capture files (ignore captures, except synthetic fixtures)
+*.pcap
+*.pcapng
+live_capture.pcap
+!test_traffic.pcap
+!tests/data/*.pcap
+!tests/data/*.pcapng
+
+# Local artifacts & CSV outputs
+data.csv
+models/
+
+# GeoIP database files
+*.mmdb
+
+# IDE settings
+.vscode/
+

@@ -91,7 +91,15 @@ ABUSEIPDB_API_KEY=your_key_here
 VIRUSTOTAL_API_KEY=your_key_here
 ```
 
-Download the free [MaxMind GeoLite2 City database](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data) and place it at `data/GeoLite2-City.mmdb`.
+### GeoLite2 City database (required for the map)
+
+The dashboard map uses a **local** MaxMind GeoLite2 City file, not a paid GeoIP API.
+
+1. Create a free account at [MaxMind GeoLite2](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data).
+2. Generate a license key and download **GeoLite2-City** (`.mmdb`).
+3. Place the file at `data/GeoLite2-City.mmdb`, or set `GEOIP_DB_PATH` in `.env`.
+
+The `.mmdb` file is **not committed** (MaxMind license + `.gitignore` `*.mmdb`). Without it the pipeline still runs; the map section shows a notice until coordinates are available. Private IPs (for example `10.x`) are never geolocated.
 
 ---
 

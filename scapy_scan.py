@@ -1,3 +1,22 @@
+"""
+scapy_scan.py — Packet capture and header extraction.
+
+What it does:
+  Reads a .pcap (or sniffs live traffic) with Scapy and returns a 15-column
+  pandas DataFrame matching the `connections` table contract.
+
+Why it exists:
+  Detectors query structured columns, not raw packets. This module is the
+  only place that talks to Scapy.
+
+Inputs:  path to a .pcap, or live sniff arguments.
+Outputs: DataFrame with timestamp, protocol, packet_length, ipsrc, ipdst,
+         tcpsrc, tcpdst, tcpflags, udpsrc, udpdst, icmp_type,
+         arp_hwsrc, arp_psrc, arp_hwdst, arp_pdst.
+
+Windows: Npcap with AdminOnly=1 requires an Administrator terminal for
+`from scapy.all import ...` (even for offline files) and for live sniff.
+"""
 import time
 import pandas as pd
 from typing import Optional, List
@@ -92,7 +111,6 @@ def extract_packet_data(packets) -> pd.DataFrame:
     for col in ["protocol", "ipsrc", "ipdst", "tcpflags", "arp_hwsrc", "arp_psrc", "arp_hwdst", "arp_pdst"]:
         dataframe[col] = dataframe[col].astype("string")
 
-    dataframe.to_csv("data.csv", index=False)
     return dataframe
 
 
