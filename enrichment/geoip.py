@@ -16,7 +16,7 @@ Outputs: dict with country_name, country_code, city, latitude, longitude,
 
 The GeoLite2 file is licensed by MaxMind and must not be committed.
 If it is missing, one warning is logged and lookups continue without
-coordinates (optional ip-api.com fallback for demos).
+coordinates. Set GEOIP_HTTP_FALLBACK=1 to opt into ip-api.com lookups.
 """
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MMDB_PATH = os.path.join("data", "GeoLite2-City.mmdb")
 _MISSING_MMDB_WARNED = False
+_HTTP_FALLBACK_WARNED = False
 
 
 class GeoIPLookup:
@@ -49,7 +50,7 @@ class GeoIPLookup:
             if not _MISSING_MMDB_WARNED:
                 logger.warning(
                     "GeoLite2 database not found at %s. "
-                    "Map points will be empty unless HTTP fallback succeeds. "
+                    "Map points will be empty unless GEOIP_HTTP_FALLBACK=1. "
                     "See README for MaxMind download steps.",
                     self.mmdb_path,
                 )
@@ -76,7 +77,7 @@ class GeoIPLookup:
         except (ValueError, AttributeError):
             return False
 
-    def lookup(self, ip: str, allow_http_fallback: bool = True) -> Dict[str, Any]:
+    def lookup(self, ip: str, allow_http_fallback: Optional[bool] = None) -> Dict[str, Any]:
         """
         Resolve IP to geographic location.
 
@@ -89,6 +90,17 @@ class GeoIPLookup:
             return {"status": "invalid_input", "country_name": "Unknown"}
 
         ip = ip.strip()
+
+        if allow_http_fallback is None:
+            allow_http_fallback = os.getenv("GEOIP_HTTP_FALLBACK") == "1"
+            if allow_http_fallback:
+                global _HTTP_FALLBACK_WARNED
+                if not _HTTP_FALLBACK_WARNED:
+                    logger.warning(
+                        "GEOIP_HTTP_FALLBACK is enabled: public IP addresses may be "
+                        "sent unencrypted over HTTP to ip-api.com."
+                    )
+                    _HTTP_FALLBACK_WARNED = True
 
         if ip in self._cache:
             return self._cache[ip]
@@ -140,6 +152,7 @@ class GeoIPLookup:
                 if not address_not_found:
                     logger.debug("MaxMind lookup failed for %s: %s", ip, exc)
 
+        # The public-IP-only check above runs before any network request.
         if allow_http_fallback:
             try:
                 res = requests.get(

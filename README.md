@@ -101,6 +101,8 @@ The dashboard map uses a **local** MaxMind GeoLite2 City file, not a paid GeoIP 
 
 The `.mmdb` file is **not committed** (MaxMind license + `.gitignore` `*.mmdb`). Without it the pipeline still runs; the map section shows a notice until coordinates are available. Private IPs (for example `10.x`) are never geolocated.
 
+Optional fallback: set `GEOIP_HTTP_FALLBACK=1` in `.env` to query `http://ip-api.com/json/<public-ip>` when the local database has no result. It is off by default. **This sends public IP addresses unencrypted to ip-api.com over HTTP.** The client skips non-public IPs, uses a 10-second timeout, caches results in memory for the current process, and logs a one-time warning when the fallback is enabled. Use the local GeoLite2 database for sensitive traffic.
+
 ---
 
 ## 🚀 Usage
@@ -200,3 +202,4 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 **Romansh Rathee**
 5th Semester Cybersecurity Student
 [GitHub](https://github.com/shilurathee) • [LinkedIn](https://linkedin.com/in/romansh-rathee)
+

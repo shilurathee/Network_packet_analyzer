@@ -31,7 +31,7 @@ def parse_arguments():
     parser.add_argument(
         "--pcap",
         type=str,
-        default=DEFAULT_PCAP,
+        default=None,
         help=f"Path to .pcap traffic file (default: '{DEFAULT_PCAP}')",
     )
     parser.add_argument(
@@ -62,11 +62,6 @@ def parse_arguments():
         "--no-enrich",
         action="store_true",
         help="Skip threat intelligence & GeoIP enrichment",
-    )
-    parser.add_argument(
-        "--vt",
-        action="store_true",
-        help="Enable automated VirusTotal queries during enrichment (subject to VT rate limits)",
     )
     parser.add_argument(
         "--no-dashboard",
@@ -163,13 +158,12 @@ def ingest_packets(
 def detect_and_enrich(
     db_path: str = DB_PATH,
     enrich: bool = True,
-    include_vt: bool = False,
 ) -> pd.DataFrame:
     """Run intrusion detection rules, MITRE ATT&CK tagging, and Threat Intel."""
     print(f"\n[3/4]  Running signature detectors and MITRE ATT&CK mapping...")
     con = duckdb.connect(db_path)
 
-    alerts_df = build_alerts(con, enrich=enrich, include_virustotal=include_vt)
+    alerts_df = build_alerts(con, enrich=enrich)
 
     if alerts_df.empty:
         print("[i] Traffic clean. No intrusion alerts raised.")
@@ -215,8 +209,8 @@ def main():
         count = args.count
         timeout = args.timeout
         iface = args.interface
-    elif args.mode:
-        mode = args.mode
+    elif args.mode or args.pcap is not None:
+        mode = args.mode or "pcap"
         pcap_path = args.pcap
         count = args.count
         timeout = args.timeout
@@ -246,7 +240,6 @@ def main():
     detect_and_enrich(
         db_path=args.db,
         enrich=not args.no_enrich,
-        include_vt=args.vt,
     )
 
     # Step 4: Launch Dashboard

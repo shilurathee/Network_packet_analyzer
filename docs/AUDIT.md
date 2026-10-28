@@ -10,7 +10,7 @@
 
 | Path | Status |
 |---|---|
-| main.py | OK. Flags: --pcap, --mode, --live, --db, --no-enrich, --vt, --no-dashboard. DB closed before dashboard. |
+| main.py | OK. Flags: --pcap, --mode, --live, --db, --no-enrich, --no-dashboard. DB closed before dashboard. |
 | scapy_scan.py | OK. 15-column output. Side-effect: writes data.csv on every parse (see Risk 2). |
 | detector.py | OK. Named detector.py not detectors.py (README mismatch). |
 | alerts.py | OK. SCAN_MIN_PORTS=10, FLOOD_MIN_SYNS=50. One alert per IP per type. |

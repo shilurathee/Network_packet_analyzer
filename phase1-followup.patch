@@ -1,0 +1,169 @@
+diff --git a/README.md b/README.md
+index 30b0f11..9911a55 100644
+--- a/README.md
++++ b/README.md
+@@ -101,7 +101,7 @@ The dashboard map uses a **local** MaxMind GeoLite2 City file, not a paid GeoIP
+ 
+ The `.mmdb` file is **not committed** (MaxMind license + `.gitignore` `*.mmdb`). Without it the pipeline still runs; the map section shows a notice until coordinates are available. Private IPs (for example `10.x`) are never geolocated.
+ 
+-Optional fallback: set `GEOIP_HTTP_FALLBACK=1` in `.env` to query `http://ip-api.com/json/<public-ip>` when the local database has no result. It is off by default. The client skips non-public IPs, uses a 10-second timeout, and caches results in memory for the current process. Because this endpoint uses plain HTTP, use the local GeoLite2 database for sensitive traffic.
++Optional fallback: set `GEOIP_HTTP_FALLBACK=1` in `.env` to query `http://ip-api.com/json/<public-ip>` when the local database has no result. It is off by default. **This sends public IP addresses unencrypted to ip-api.com over HTTP.** The client skips non-public IPs, uses a 10-second timeout, caches results in memory for the current process, and logs a one-time warning when the fallback is enabled. Use the local GeoLite2 database for sensitive traffic.
+ 
+ ---
+ 
+@@ -201,4 +201,5 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
+ 
+ **Romansh Rathee**
+ 5th Semester Cybersecurity Student
+-[GitHub](https://github.com/shilurathee) • [LinkedIn](https://linkedin.com/in/romansh-rathee)
+\ No newline at end of file
++[GitHub](https://github.com/shilurathee) • [LinkedIn](https://linkedin.com/in/romansh-rathee)
++
+diff --git a/docs/AUDIT.md b/docs/AUDIT.md
+index 67c8804..133524e 100644
+--- a/docs/AUDIT.md
++++ b/docs/AUDIT.md
+@@ -10,7 +10,7 @@
+ 
+ | Path | Status |
+ |---|---|
+-| main.py | OK. Flags: --pcap, --mode, --live, --db, --no-enrich, --vt, --no-dashboard. DB closed before dashboard. |
++| main.py | OK. Flags: --pcap, --mode, --live, --db, --no-enrich, --no-dashboard. DB closed before dashboard. |
+ | scapy_scan.py | OK. 15-column output. Side-effect: writes data.csv on every parse (see Risk 2). |
+ | detector.py | OK. Named detector.py not detectors.py (README mismatch). |
+ | alerts.py | OK. SCAN_MIN_PORTS=10, FLOOD_MIN_SYNS=50. One alert per IP per type. |
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+new file mode 100644
+index 0000000..12d5361
+--- /dev/null
++++ b/docs/CHANGELOG.md
+@@ -0,0 +1,14 @@
++# Changelog
++
++## Phase 0 — audit and stabilisation
++
++- Golden path validated on the project owner's terminal: 1,001 packets and exactly six expected alerts.
++- See [AUDIT.md](AUDIT.md) for the audit, hygiene changes and remaining risks.
++
++## Phase 1 — enrichment UI (validation pending)
++
++- Added the GeoIP map and a dedicated, cached, on-demand VirusTotal button.
++- GeoIP's ip-api.com HTTP fallback is now opt-in (`GEOIP_HTTP_FALLBACK=1`), restricted to public IPs, timed out and cached in memory. It logs a one-time warning about unencrypted transmission.
++- Explicit `--pcap` and `--live` skip the interactive menu. Removed the automatic VirusTotal CLI option.
++- GeoIP tests: five passed on the project owner's terminal (reported 2026-10-28).
++- **Map validation: PENDING.** The GeoLite2 database has not been added yet. A map screenshot and on-demand VirusTotal UI validation are still needed; no demo database was used.
+diff --git a/enrichment/geoip.py b/enrichment/geoip.py
+index 9e00940..c0b2cf5 100644
+--- a/enrichment/geoip.py
++++ b/enrichment/geoip.py
+@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
+ 
+ DEFAULT_MMDB_PATH = os.path.join("data", "GeoLite2-City.mmdb")
+ _MISSING_MMDB_WARNED = False
++_HTTP_FALLBACK_WARNED = False
+ 
+ 
+ class GeoIPLookup:
+@@ -90,6 +91,17 @@ class GeoIPLookup:
+ 
+         ip = ip.strip()
+ 
++        if allow_http_fallback is None:
++            allow_http_fallback = os.getenv("GEOIP_HTTP_FALLBACK") == "1"
++            if allow_http_fallback:
++                global _HTTP_FALLBACK_WARNED
++                if not _HTTP_FALLBACK_WARNED:
++                    logger.warning(
++                        "GEOIP_HTTP_FALLBACK is enabled: public IP addresses may be "
++                        "sent unencrypted over HTTP to ip-api.com."
++                    )
++                    _HTTP_FALLBACK_WARNED = True
++
+         if ip in self._cache:
+             return self._cache[ip]
+ 
+@@ -141,9 +153,6 @@ class GeoIPLookup:
+                     logger.debug("MaxMind lookup failed for %s: %s", ip, exc)
+ 
+         # The public-IP-only check above runs before any network request.
+-        if allow_http_fallback is None:
+-            allow_http_fallback = os.getenv("GEOIP_HTTP_FALLBACK") == "1"
+-
+         if allow_http_fallback:
+             try:
+                 res = requests.get(
+diff --git a/main.py b/main.py
+index 0465ac9..659a557 100644
+--- a/main.py
++++ b/main.py
+@@ -63,11 +63,6 @@ def parse_arguments():
+         action="store_true",
+         help="Skip threat intelligence & GeoIP enrichment",
+     )
+-    parser.add_argument(
+-        "--vt",
+-        action="store_true",
+-        help="Enable automated VirusTotal queries during enrichment (subject to VT rate limits)",
+-    )
+     parser.add_argument(
+         "--no-dashboard",
+         action="store_true",
+@@ -163,13 +158,12 @@ def ingest_packets(
+ def detect_and_enrich(
+     db_path: str = DB_PATH,
+     enrich: bool = True,
+-    include_vt: bool = False,
+ ) -> pd.DataFrame:
+     """Run intrusion detection rules, MITRE ATT&CK tagging, and Threat Intel."""
+     print(f"\n[3/4]  Running signature detectors and MITRE ATT&CK mapping...")
+     con = duckdb.connect(db_path)
+ 
+-    alerts_df = build_alerts(con, enrich=enrich, include_virustotal=include_vt)
++    alerts_df = build_alerts(con, enrich=enrich)
+ 
+     if alerts_df.empty:
+         print("[i] Traffic clean. No intrusion alerts raised.")
+@@ -246,7 +240,6 @@ def main():
+     detect_and_enrich(
+         db_path=args.db,
+         enrich=not args.no_enrich,
+-        include_vt=args.vt,
+     )
+ 
+     # Step 4: Launch Dashboard
+@@ -257,4 +250,4 @@ def main():
+ 
+ 
+ if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    main()
+diff --git a/tests/test_geoip.py b/tests/test_geoip.py
+index 3523357..848f454 100644
+--- a/tests/test_geoip.py
++++ b/tests/test_geoip.py
+@@ -23,7 +23,7 @@ def test_missing_mmdb_without_http_returns_not_found():
+     assert result["longitude"] is None
+ 
+ 
+-def test_http_fallback_is_off_by_default_and_opt_in_is_cached(monkeypatch):
++def test_http_fallback_is_off_by_default_and_opt_in_is_cached(monkeypatch, caplog):
+     monkeypatch.delenv("GEOIP_HTTP_FALLBACK", raising=False)
+     geo = GeoIPLookup(mmdb_path="data/does-not-exist.mmdb")
+     with patch("enrichment.geoip.requests.get") as mocked:
+@@ -31,6 +31,7 @@ def test_http_fallback_is_off_by_default_and_opt_in_is_cached(monkeypatch):
+     mocked.assert_not_called()
+ 
+     monkeypatch.setenv("GEOIP_HTTP_FALLBACK", "1")
++    monkeypatch.setattr("enrichment.geoip._HTTP_FALLBACK_WARNED", False)
+     geo = GeoIPLookup(mmdb_path="data/does-not-exist.mmdb")
+     fake = MagicMock()
+     fake.status_code = 200
+@@ -41,6 +42,7 @@ def test_http_fallback_is_off_by_default_and_opt_in_is_cached(monkeypatch):
+         assert geo.lookup("10.0.0.1")["status"] == "private_ip"
+     mocked.assert_called_once()
+     assert mocked.call_args.kwargs["timeout"] == 10
++    assert caplog.text.count("sent unencrypted over HTTP to ip-api.com") == 1
+ 
+ 
+ def test_http_fallback_is_mocked():
