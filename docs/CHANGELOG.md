@@ -16,7 +16,7 @@
 ## Phase 2B — measured evaluation and benchmark
 
 - Owner terminal: 39 tests passed with 8 warnings in 33.50 seconds; seeded baseline 1,088 packets and noisy-normal 1,128. See [results.md](results.md) for per-detector scores and hypotheses for the three false positives.
-- The five-run benchmark medians are in [benchmarks.md](benchmarks.md). Parser time was collected while `tracemalloc` was active, so a clean timing rerun is required after separating timing and memory passes.
+- The five-run benchmark medians are in [benchmarks.md](benchmarks.md). The initial parser timing included `tracemalloc` overhead; the owner's rerun measured parser time separately from peak memory allocation.
 
 ## Phase 7 cleanup list
 
