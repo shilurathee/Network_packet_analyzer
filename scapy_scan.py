@@ -2,7 +2,7 @@
 scapy_scan.py — Packet capture and header extraction.
 
 What it does:
-  Reads a .pcap (or sniffs live traffic) with Scapy and returns a 15-column
+  Reads a .pcap (or sniffs live traffic) with Scapy and returns a 16-column
   pandas DataFrame matching the `connections` table contract.
 
 Why it exists:
@@ -12,7 +12,7 @@ Why it exists:
 Inputs:  path to a .pcap, or live sniff arguments.
 Outputs: DataFrame with timestamp, protocol, packet_length, ipsrc, ipdst,
          tcpsrc, tcpdst, tcpflags, udpsrc, udpdst, icmp_type,
-         arp_hwsrc, arp_psrc, arp_hwdst, arp_pdst.
+         arp_hwsrc, arp_psrc, arp_hwdst, arp_pdst, arp_op.
 
 Windows: Npcap with AdminOnly=1 requires an Administrator terminal for
 `from scapy.all import ...` (even for offline files) and for live sniff.
@@ -30,6 +30,7 @@ def extract_packet_data(packets) -> pd.DataFrame:
     udpsrc, udpdst = [], []
     icmp_type = []
     arp_hwsrc, arp_psrc, arp_hwdst, arp_pdst = [], [], [], []
+    arp_op = []
     timestamp = []
     packet_length = []
     protocol = []
@@ -67,11 +68,13 @@ def extract_packet_data(packets) -> pd.DataFrame:
             icmp_type.append(None)
 
         if packet.haslayer(ARP):
+            arp_op.append(int(packet[ARP].op))
             arp_hwsrc.append(packet[ARP].hwsrc)
             arp_psrc.append(packet[ARP].psrc)
             arp_hwdst.append(packet[ARP].hwdst)
             arp_pdst.append(packet[ARP].pdst)
         else:
+            arp_op.append(None)
             arp_hwsrc.append(None)
             arp_psrc.append(None)
             arp_hwdst.append(None)
@@ -104,6 +107,7 @@ def extract_packet_data(packets) -> pd.DataFrame:
         "arp_psrc": arp_psrc,
         "arp_hwdst": arp_hwdst,
         "arp_pdst": arp_pdst,
+        "arp_op": arp_op,
     }
 
     dataframe = pd.DataFrame(dictionary)

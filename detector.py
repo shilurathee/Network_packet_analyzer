@@ -68,9 +68,10 @@ def detect_arp_spoofing(con, window_seconds=None):
     return con.execute(f"""{WINDOW_CTE}
         SELECT arp_psrc,
                window_bucket,
-               COUNT(DISTINCT arp_hwsrc) AS mac_count
+               COUNT(DISTINCT arp_hwsrc) AS mac_count,
+               STRING_AGG(DISTINCT arp_hwsrc, ', ' ORDER BY arp_hwsrc) AS mac_addresses
         FROM stamped
-        WHERE arp_psrc IS NOT NULL
+        WHERE arp_psrc IS NOT NULL AND arp_psrc <> '0.0.0.0'
         GROUP BY arp_psrc, window_bucket
         HAVING mac_count >= ?
         ORDER BY mac_count DESC

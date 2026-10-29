@@ -43,7 +43,7 @@ def _add_alert_metadata(con, alerts_df, cfg):
     for _, row in alerts_df.iterrows():
         kind = row["detection_type"]
         arp = kind == "arp_spoofing"
-        source, target = ("arp_psrc", "arp_pdst") if arp else ("ipsrc", "ipdst")
+        source, target = ("arp_psrc", "arp_psrc") if arp else ("ipsrc", "ipdst")
         sql = f"SELECT MIN(timestamp), MAX(timestamp), ANY_VALUE({target}) FROM connections WHERE {source} = ?"
         params = [row["ipsrc"]]
         if kind in ("syn_flood", "port_scan"):
@@ -111,7 +111,11 @@ def build_alerts(con, enrich: bool = True, include_virustotal: bool = False):
         arp = arp.sort_values("mac_count", ascending=False).drop_duplicates("ipsrc")
         arp["rule_count"] = arp["mac_count"]
         arp["severity_ratio"] = arp["mac_count"] / cfg.arp_min_macs
-        arp["details"] = "IP claimed by " + arp["mac_count"].astype(str) + " different MACs"
+        arp["details"] = (
+            "IP claimed by " + arp["mac_count"].astype(str)
+            + " different MACs: " + arp["mac_addresses"].fillna("unknown")
+            + " (claimed IP " + arp["ipsrc"].astype(str) + ")"
+        )
         parts.append(_finish(arp, "arp_spoofing"))
 
     # --- DNS tunneling (one row per packet -> group into one alert per IP) ---

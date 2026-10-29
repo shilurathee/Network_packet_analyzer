@@ -102,6 +102,36 @@ def test_arp_conflict_boundary(connections_db, macs, expected):
     assert ("arp_spoofing" in set(build_alerts(con, enrich=False)["detection_type"])) is expected
 
 
+def test_arp_probe_is_ignored(connections_db):
+    """A host probing with 0.0.0.0 is not an ownership conflict."""
+    rows = [{"protocol": "ARP", "arp_psrc": "0.0.0.0", "arp_op": 1,
+             "arp_hwsrc": f"02:00:00:00:00:{i:02x}"} for i in (1, 2)]
+    con = connections_db(rows)
+    assert detect_arp_spoofing(con).empty
+
+
+def test_arp_conflict_details_and_victim(connections_db):
+    """A same-window conflict names both MACs and the claimed IP."""
+    macs = ("02:00:00:00:00:01", "02:00:00:00:00:02")
+    rows = [{"timestamp": 1000 + i, "protocol": "ARP", "arp_op": 2,
+             "arp_psrc": "10.0.0.4", "arp_hwsrc": mac}
+            for i, mac in enumerate(macs)]
+    con = connections_db(rows)
+    alert = build_alerts(con, enrich=False).iloc[0]
+    assert alert["ipdst"] == "10.0.0.4"
+    assert "10.0.0.4" in alert["details"]
+    assert all(mac in alert["details"] for mac in macs)
+
+
+def test_arp_mac_change_in_different_windows_is_not_conflict(connections_db):
+    """A later address change must not combine MACs across windows."""
+    rows = [{"timestamp": 1000 + i * 120, "protocol": "ARP", "arp_op": 2,
+             "arp_psrc": "10.0.0.4", "arp_hwsrc": f"02:00:00:00:00:{i:02x}"}
+            for i in (1, 2)]
+    con = connections_db(rows)
+    assert detect_arp_spoofing(con).empty
+
+
 @pytest.mark.parametrize("size,expected", [
     (DNS_MIN_SIZE - 1, False), (DNS_MIN_SIZE, False), (DNS_MIN_SIZE + 1, True),
 ])

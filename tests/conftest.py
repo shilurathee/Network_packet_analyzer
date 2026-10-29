@@ -1,4 +1,4 @@
-"""Build an isolated 15-column connections table for detector tests.
+"""Build an isolated 16-column connections table for detector tests.
 
 Inputs are packet-like dictionaries; the output is an in-memory DuckDB
 connection, so tests never touch the user's database or network.
@@ -10,7 +10,7 @@ import pytest
 CONNECTION_COLUMNS = (
     "timestamp", "protocol", "packet_length", "ipsrc", "ipdst",
     "tcpsrc", "tcpdst", "tcpflags", "udpsrc", "udpdst", "icmp_type",
-    "arp_hwsrc", "arp_psrc", "arp_hwdst", "arp_pdst",
+    "arp_hwsrc", "arp_psrc", "arp_hwdst", "arp_pdst", "arp_op",
 )
 
 
@@ -28,7 +28,7 @@ def connections_db():
                 ipsrc VARCHAR, ipdst VARCHAR, tcpsrc INTEGER, tcpdst INTEGER,
                 tcpflags VARCHAR, udpsrc INTEGER, udpdst INTEGER,
                 icmp_type INTEGER, arp_hwsrc VARCHAR, arp_psrc VARCHAR,
-                arp_hwdst VARCHAR, arp_pdst VARCHAR
+                arp_hwdst VARCHAR, arp_pdst VARCHAR, arp_op INTEGER
             )
         """)
         if rows:

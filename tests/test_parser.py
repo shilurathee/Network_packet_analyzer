@@ -1,4 +1,4 @@
-"""Verify the Scapy parser's 15-column packet contract using temporary pcaps.
+"""Verify the Scapy parser's 16-column packet contract using temporary pcaps.
 
 The tests write only synthetic packets and check layer-specific fields and
 missing values before any detector or external service sees the data.
@@ -34,7 +34,9 @@ def test_parser_packet_layers_and_nulls(tmp_path):
     assert df.loc[3, "icmp_type"] == 8
     assert df.loc[4, "arp_psrc"] == "10.0.0.7"
     assert df.loc[4, "arp_hwsrc"] == "02:00:00:00:00:07"
+    assert df.loc[4, "arp_op"] == 1
     assert pd.isna(df.loc[4, "ipsrc"])
     assert pd.isna(df.loc[0, "arp_psrc"])
+    assert pd.isna(df.loc[0, "arp_op"])
     assert pd.isna(df.loc[5, "tcpflags"])
     assert df["timestamp"].notna().all()
