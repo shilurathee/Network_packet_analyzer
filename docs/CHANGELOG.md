@@ -55,8 +55,9 @@
 - Added tests for size boundaries, repeated large legitimate queries, distinct subdomains and allowlisting. Owner terminal: 56 passed, 211 warnings (8 dashboard, 203 Scapy DNS deprecations), six golden alerts from 1,001 packets. Both evaluation sets retained TP 1 and FN 0 for all six detectors; noisy DNS FP fell from 1 to 0, while port scan and ICMP remained FP 1 each. See [results.md](results.md).
 - The two-label base-domain approximation can misgroup public suffixes, and small or repetitive tunnels can be missed; no real-world DNS accuracy claim is made.
 
-## Phase 3.7 — ATT&CK mapping v2 (awaiting owner validation)
+## Phase 3.7 — ATT&CK mapping v2 (validated)
 
 - Verified technique IDs, official names and tactics against ATT&CK Enterprise v20.0; see [mitre-mapping.md](mitre-mapping.md) for links and the evidence limits of each mapping.
 - Switched to structured mapping metadata and explicitly labelled approximate display mappings. TCP SYN+FIN flags are unmapped because they do not demonstrate firewall tampering. The original four alert columns remain unchanged.
 - Updated DNS question access for Scapy's list field to avoid the new deprecation warnings seen in the owner's Phase 3.6 test run. Dashboard asyncio warnings remain on the Phase 7 cleanup list.
+- Owner terminal: 58 tests passed with 8 dashboard asyncio deprecation warnings. The golden capture retained six alerts from 1,001 packets, with the updated ATT&CK labels and an explicitly unmapped SYN+FIN alert.
