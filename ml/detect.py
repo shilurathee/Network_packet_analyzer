@@ -27,7 +27,10 @@ def score(packets, model_path="models/isolation_forest.joblib", capture_sha256=N
     features = extract_features(packets, metadata["window_seconds"])
     matrix = model_matrix(features)
     if matrix.empty:
-        return features.assign(anomaly_score=pd.Series(dtype=float), ml_flag=pd.Series(dtype=bool))
+        return features.assign(anomaly_score=pd.Series(dtype=float),
+                               raw_anomaly_score=pd.Series(dtype=float),
+                               ml_flag=pd.Series(dtype=bool),
+                               explanation=pd.Series(dtype=str))
     # Only load models created locally; joblib deserialization executes pickle.
     pipeline = joblib.load(path)
     if list(getattr(pipeline, "feature_names_in_", [])) != list(FEATURES):
@@ -48,7 +51,8 @@ def score(packets, model_path="models/isolation_forest.joblib", capture_sha256=N
                             or "unusual combination of traffic features")
     # Compare unbounded scores: clipping the display score to 1 must not
     # suppress outliers when the normal 99th percentile is itself the max.
-    return features.assign(anomaly_score=scores, ml_flag=raw > metadata["raw_threshold"],
+    return features.assign(anomaly_score=scores, raw_anomaly_score=raw,
+                           ml_flag=raw > metadata["raw_threshold"],
                            explanation=explanations)
 
 

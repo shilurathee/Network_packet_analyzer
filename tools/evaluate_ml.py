@@ -31,7 +31,34 @@ def _metrics(positives, predicted, universe, scores):
             "recall": recall, "F1": f1, "ROC_AUC": auc}
 
 
-def evaluate(pcap, truth_path, model_path):
+def _diagnostics(scored, truth, metadata):
+    """Expose score/cutoff comparisons without changing prediction behavior."""
+    best = scored.sort_values("raw_anomaly_score", ascending=False).drop_duplicates("ipsrc")
+    rows = best.set_index("ipsrc")
+    labelled = []
+    for item in truth["attackers"]:
+        ip = item["ip"]
+        if ip not in rows.index:
+            labelled.append({"ip": ip, "attack_type": item["attack_type"], "missing_score": True})
+            continue
+        row = rows.loc[ip]
+        labelled.append({"ip": ip, "attack_type": item["attack_type"],
+                         "score": float(row["anomaly_score"]),
+                         "raw_score": float(row["raw_anomaly_score"]),
+                         "flagged": bool(row["ml_flag"])})
+    attackers = {item["ip"] for item in truth["attackers"]}
+    false_positives = [
+        {"ip": row["ipsrc"], "score": float(row["anomaly_score"]),
+         "raw_score": float(row["raw_anomaly_score"]), "explanation": row["explanation"]}
+        for _, row in best.iterrows()
+        if bool(row["ml_flag"]) and row["ipsrc"] not in attackers
+    ]
+    return {"display_threshold": metadata["threshold"],
+            "raw_threshold": metadata["raw_threshold"],
+            "labelled_sources": labelled, "false_positive_sources": false_positives}
+
+
+def evaluate(pcap, truth_path, model_path, details=False):
     truth = json.loads(Path(truth_path).read_text(encoding="utf-8"))
     positives = {item["ip"] for item in truth["attackers"]}
     packets = process_pcap(str(pcap))
@@ -52,7 +79,7 @@ def evaluate(pcap, truth_path, model_path):
     ml_ips = set(ml.loc[ml["ml_flag"], "ipsrc"])
     combined_ips = set(merged["ipsrc"].dropna())
     ml_scores = ml.groupby("ipsrc")["anomaly_score"].max().to_dict()
-    return {
+    result = {
         "packets": len(packets), "labelled_attackers": len(positives),
         "normal_sources": len(universe - positives),
         "rules_only": _metrics(positives, rule_ips, universe,
@@ -63,6 +90,9 @@ def evaluate(pcap, truth_path, model_path):
         "novel_attacks": [item["attack_type"] for item in truth["attackers"]
                           if item["attack_type"] in {"slow_scan", "udp_flood", "host_sweep", "multi_host_syn_scan"}],
     }
+    if details:
+        result["score_diagnostics"] = _diagnostics(ml, truth, metadata)
+    return result
 
 
 def main():
@@ -70,8 +100,9 @@ def main():
     parser.add_argument("--pcap", type=Path, required=True)
     parser.add_argument("--truth", type=Path, required=True)
     parser.add_argument("--model", type=Path, default=Path("models/isolation_forest.joblib"))
+    parser.add_argument("--details", action="store_true", help="Show labelled and false-positive source scores versus the cutoff")
     args = parser.parse_args()
-    print(json.dumps(evaluate(args.pcap, args.truth, args.model), indent=2))
+    print(json.dumps(evaluate(args.pcap, args.truth, args.model, details=args.details), indent=2))
 
 
 if __name__ == "__main__":

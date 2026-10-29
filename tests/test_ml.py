@@ -10,6 +10,7 @@ from ml.integrate import merge_alerts
 from ml.train import train
 from ml.detect import score
 from tools.generate_traffic import generate
+from tools.evaluate_ml import _diagnostics
 
 
 def _row(ip, timestamp, protocol="TCP", flags="S", dst="10.2.0.1", port=443):
@@ -73,3 +74,17 @@ def test_normal_training_capture_and_novel_labels_are_disjoint():
     _, novel = generate(42, 150, 10, False, novel_attacks=True)
     assert {item["attack_type"] for item in novel["attackers"]} >= {
         "slow_scan", "udp_flood", "host_sweep", "multi_host_syn_scan"}
+
+
+def test_score_diagnostics_show_missed_attack_and_normal_false_positive():
+    scored = pd.DataFrame([
+        {"ipsrc": "10.0.0.1", "anomaly_score": 0.4, "raw_anomaly_score": 0.5,
+         "ml_flag": False, "explanation": "normal"},
+        {"ipsrc": "10.0.0.2", "anomaly_score": 0.9, "raw_anomaly_score": 0.8,
+         "ml_flag": True, "explanation": "many ports"},
+    ])
+    result = _diagnostics(scored, {"attackers": [{"ip": "10.0.0.1", "attack_type": "novel"}]},
+                          {"threshold": 0.7, "raw_threshold": 0.7})
+    assert result["labelled_sources"][0]["flagged"] is False
+    assert result["false_positive_sources"][0]["ip"] == "10.0.0.2"
+    assert result["raw_threshold"] == 0.7

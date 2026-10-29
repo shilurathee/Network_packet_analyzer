@@ -19,6 +19,7 @@ python -m tools.evaluate_ml --pcap "$runDir\clean\traffic.pcap" --truth "$runDir
 python -m tools.evaluate_ml --pcap "$runDir\baseline\traffic.pcap" --truth "$runDir\baseline\ground_truth.json"
 python -m tools.evaluate_ml --pcap "$runDir\noisy\traffic.pcap" --truth "$runDir\noisy\ground_truth.json"
 python -m tools.evaluate_ml --pcap "$runDir\novel\traffic.pcap" --truth "$runDir\novel\ground_truth.json"
+python -m tools.evaluate_ml --pcap "$runDir\novel\traffic.pcap" --truth "$runDir\novel\ground_truth.json" --details
 python main.py --pcap test_traffic.pcap --no-enrich --no-dashboard
 python main.py --pcap "$runDir\novel\traffic.pcap" --no-enrich --no-dashboard --ml
 python -m tools.generate_traffic --seed 42 --packets 100000 --normal-handshakes 50 --output "$runDir\large\traffic.pcap"
