@@ -34,6 +34,25 @@ On the clean set there are **zero labelled positives**, so precision/recall/F1 d
 
 The owner measured a **5.940199600001506-second** median over **5** scoring runs on **100,088** parsed packet rows and **3,457** source/windows, excluding PCAP parsing. Machine: Windows-11-10.0.26200-SP0, Python **3.14.7**, Intel64 Family 6 Model 189 Stepping 1 GenuineIntel. This meets the 10-second scoring target for this machine and dataset. Do not infer that ML improves on the rules from the timing result. A trained model should be loaded only from a trusted local path because joblib uses pickle serialization.
 
-## Initiating-source model rerun — PENDING
+## Initiating-source model rerun — owner-validated
 
-The next model excludes response-only SYN+ACK source/windows from both training and inference because the first training capture contained just one such normal server. This changes the eligible population and requires retraining; the numbers above describe only the first model. New clean/baseline/noisy/novel scores, false positives, and scoring timing are **PENDING** owner runs. Do not compare this scoped model's results to the historical ones until its excluded population is stated.
+This model excludes response-only SYN+ACK source/windows from both training and inference because the first training capture contained just one such normal server. The owner's retraining used **250** eligible normal source/windows. Its displayed 99th-percentile cutoff was **1.0** (raw cutoff **0.7662642240839863**). The table below describes this scoped model; the previous table remains the first model's historical result.
+
+| Capture | Method | TP | FP | FN | Precision | Recall | F1 | ROC-AUC |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Clean (1,000 packets) | Rules | 0 | 0 | 0 | 0.0 | 0.0 | 0.0 | null |
+| Clean (1,000 packets) | ML | 0 | 0 | 0 | 0.0 | 0.0 | 0.0 | null |
+| Clean (1,000 packets) | Combined | 0 | 0 | 0 | 0.0 | 0.0 | 0.0 | null |
+| Baseline (1,088 packets) | Rules | 6 | 0 | 0 | 1.0 | 1.0 | 1.0 | 1.0 |
+| Baseline (1,088 packets) | ML | 0 | 0 | 6 | 0.0 | 0.0 | 0.0 | 0.7928286852589641 |
+| Baseline (1,088 packets) | Combined | 6 | 0 | 0 | 1.0 | 1.0 | 1.0 | 0.9920318725099602 |
+| Noisy (1,128 packets) | Rules | 6 | 2 | 0 | 0.75 | 1.0 | 0.8571428571428571 | 0.9960629921259843 |
+| Noisy (1,128 packets) | ML | 0 | 0 | 6 | 0.0 | 0.0 | 0.0 | 0.7887139107611549 |
+| Noisy (1,128 packets) | Combined | 6 | 2 | 0 | 0.75 | 1.0 | 0.8571428571428571 | 0.9881889763779528 |
+| Novel (1,270 packets) | Rules | 6 | 0 | 4 | 1.0 | 0.6 | 0.7499999999999999 | 0.8 |
+| Novel (1,270 packets) | ML | 0 | 0 | 10 | 0.0 | 0.0 | 0.0 | 0.8127490039840638 |
+| Novel (1,270 packets) | Combined | 6 | 0 | 4 | 1.0 | 0.6 | 0.7499999999999999 | 0.9322709163346614 |
+
+The owner rerun passed **64** tests with **8** dashboard asyncio deprecation warnings. On the novel capture, all ten labelled sources were unflagged; the highest raw attack score was **0.5501453240323717**, below the raw cutoff. There were no model false positives, but the model caught **none** of the four novel attack types, so adding it did not improve alert-level performance over the rules. The 1.0 displayed cutoff comes from normalization against the training-score maximum; the flag decision uses the raw cutoff. These scores are not evidence that the model detects unseen attacks. Response-only source/windows are outside this model's coverage.
+
+The owner's five-run median was **6.392216899999767 seconds** for **100,088** parsed packet rows and **3,456** eligible windows, excluding parsing. Machine: Windows-11-10.0.26200-SP0, Python **3.14.7**, Intel64 Family 6 Model 189 Stepping 1 GenuineIntel. This meets the Phase 4 scoring-time target on this dataset, while detection utility remains unproven.
