@@ -25,8 +25,13 @@
 - Investigate AppTest's "missing ScriptRunContext" log noise without hiding real errors.
 - Local validation uses Python 3.14.7; verify supported versions and deprecations during packaging.
 
-## Phase 3.1 — threshold configuration and time windows (awaiting validation)
+## Phase 3.1 — threshold configuration and time windows (validated)
 
 - Added immutable threshold settings with environment overrides; defaults preserve the existing cutoffs.
 - SYN, ICMP and ARP aggregation now uses capture-relative 60-second windows; each source keeps its strongest qualifying window. DNS size and malformed-flag rules retain their per-packet behavior.
-- Added tests contrasting a short SYN burst with the same SYN count spread across ten minutes. The six-alert golden test and the evaluation tool still need to be run by the project owner before continuing Phase 3.
+- Added tests contrasting a short SYN burst with the same SYN count spread across ten minutes. Owner terminal: 42 tests passed (8 dashboard deprecation warnings) and the golden capture retained six alerts from 1,001 packets.
+
+## Phase 3.2 — SYN completion check (awaiting validation)
+
+- The SYN detector now compares each SYN to an ACK from the same source and TCP flow inside its capture window. A flood requires more than 50 incomplete SYNs to one port and a completion rate below 10%; the other rule thresholds stay the same.
+- Added tests for no ACKs, matching ACKs, the completion-rate boundary and an unrelated ACK. Missing packets or asymmetric captures can still make a legitimate flow appear incomplete.

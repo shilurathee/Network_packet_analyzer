@@ -9,18 +9,35 @@ WINDOW_CTE = f"WITH stamped AS (SELECT *, {WINDOW_BUCKET} AS window_bucket FROM 
 
 
 def detect_port_scan_and_syn_flood(con, window_seconds=None):
-    """unique_ports == 1  -> SYN flood
-       unique_ports > 1   -> Port scan
+    """Count SYNs per window and match same-flow client ACKs for completion.
+
+    An ACK from the original source on the same four-tuple indicates that
+    the handshake progressed. Missing captures can make a flow look incomplete.
     """
     window_seconds = window_seconds or Thresholds.from_env().window_seconds
     return con.execute(f"""{WINDOW_CTE}
-        SELECT ipsrc,
-               window_bucket,
+        , acks AS (
+            SELECT DISTINCT ipsrc, ipdst, tcpsrc, tcpdst, window_bucket
+            FROM stamped
+            WHERE CAST(tcpflags AS VARCHAR) LIKE '%A%'
+              AND CAST(tcpflags AS VARCHAR) NOT LIKE '%S%'
+        )
+        SELECT s.ipsrc,
+               s.window_bucket,
                COUNT(*) AS total_syns,
-               COUNT(DISTINCT tcpdst) AS unique_ports
-        FROM stamped
-        WHERE CAST(tcpflags AS VARCHAR) = 'S'
-        GROUP BY ipsrc, window_bucket
+               COUNT(DISTINCT s.tcpdst) AS unique_ports,
+               SUM(CASE WHEN a.ipsrc IS NULL THEN 1 ELSE 0 END) AS incomplete_syns,
+               SUM(CASE WHEN a.ipsrc IS NOT NULL THEN 1 ELSE 0 END)
+                   / CAST(COUNT(*) AS DOUBLE) AS completion_rate
+        FROM stamped s
+        LEFT JOIN acks a
+          ON s.ipsrc = a.ipsrc
+         AND s.ipdst IS NOT DISTINCT FROM a.ipdst
+         AND s.tcpsrc IS NOT DISTINCT FROM a.tcpsrc
+         AND s.tcpdst IS NOT DISTINCT FROM a.tcpdst
+         AND s.window_bucket = a.window_bucket
+        WHERE CAST(s.tcpflags AS VARCHAR) = 'S'
+        GROUP BY s.ipsrc, s.window_bucket
         HAVING total_syns > 5
         ORDER BY total_syns DESC
     """, [int(window_seconds)]).df()

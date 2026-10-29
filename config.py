@@ -18,6 +18,7 @@ class Thresholds:
     dns_min_size: int = 100
     arp_min_macs: int = 2
     window_seconds: int = 60
+    syn_max_completion_rate: float = 0.10
 
     @classmethod
     def from_env(cls):
@@ -26,7 +27,10 @@ class Thresholds:
         values = {}
         for name in defaults.__dataclass_fields__:
             raw = os.getenv(name.upper())
-            values[name] = int(raw) if raw is not None else getattr(defaults, name)
+            default = getattr(defaults, name)
+            values[name] = type(default)(raw) if raw is not None else default
         if values["window_seconds"] <= 0:
             raise ValueError("WINDOW_SECONDS must be positive")
+        if not 0 <= values["syn_max_completion_rate"] <= 1:
+            raise ValueError("SYN_MAX_COMPLETION_RATE must be between 0 and 1")
         return cls(**values)

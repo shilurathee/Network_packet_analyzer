@@ -52,6 +52,34 @@ def test_syn_flood_boundary(connections_db, count, expected):
     assert ("syn_flood" in set(build_alerts(con, enrich=False)["detection_type"])) is expected
 
 
+@pytest.mark.parametrize("completed_flows,expected", [
+    (0, True), (5, True), (6, False), (60, False),
+])
+def test_syn_completion_rate(connections_db, completed_flows, expected):
+    """ACKs on matching client flows lower the incomplete SYN fraction."""
+    rows = [
+        {"timestamp": 1_700_000_000 + i * 0.01,
+         "ipsrc": "10.0.0.1", "ipdst": "10.0.0.2", "protocol": "TCP",
+         "tcpsrc": 40000 + i, "tcpdst": 80, "tcpflags": "S"}
+        for i in range(60)
+    ]
+    rows += [dict(rows[i], tcpflags="A") for i in range(completed_flows)]
+    con = connections_db(rows)
+    syn = detect_port_scan_and_syn_flood(con).iloc[0]
+    assert syn["total_syns"] == 60
+    assert syn["incomplete_syns"] == 60 - completed_flows
+    assert ("syn_flood" in set(build_alerts(con, enrich=False)["detection_type"])) is expected
+
+
+def test_unrelated_ack_does_not_complete_syn(connections_db):
+    """An ACK on a different source port cannot mask incomplete SYNs."""
+    rows = syn_rows(51, 1)
+    rows.append({"ipsrc": "10.0.0.1", "ipdst": "10.0.0.2", "protocol": "TCP",
+                 "tcpsrc": 9999, "tcpdst": 1000, "tcpflags": "A"})
+    con = connections_db(rows)
+    assert "syn_flood" in set(build_alerts(con, enrich=False)["detection_type"])
+
+
 @pytest.mark.parametrize("count,expected", [
     (ICMP_MIN - 1, False), (ICMP_MIN, False), (ICMP_MIN + 1, True),
 ])

@@ -38,7 +38,9 @@ def build_alerts(con, enrich: bool = True, include_virustotal: bool = False):
             syn["total_syns"].astype(str) + " SYNs to "
             + syn["unique_ports"].astype(str) + " port(s)"
         )
-        flood = syn[(syn["unique_ports"] == 1) & (syn["total_syns"] > cfg.flood_min_syns)]
+        flood = syn[(syn["unique_ports"] == 1)
+                    & (syn["incomplete_syns"] > cfg.flood_min_syns)
+                    & (syn["completion_rate"] < cfg.syn_max_completion_rate)]
         scan = syn[syn["unique_ports"] >= cfg.scan_min_ports]
         flood = flood.sort_values("total_syns", ascending=False).drop_duplicates("ipsrc")
         scan = scan.sort_values("unique_ports", ascending=False).drop_duplicates("ipsrc")
