@@ -61,3 +61,9 @@
 - Switched to structured mapping metadata and explicitly labelled approximate display mappings. TCP SYN+FIN flags are unmapped because they do not demonstrate firewall tampering. The original four alert columns remain unchanged.
 - Updated DNS question access for Scapy's list field to avoid the new deprecation warnings seen in the owner's Phase 3.6 test run. Dashboard asyncio warnings remain on the Phase 7 cleanup list.
 - Owner terminal: 58 tests passed with 8 dashboard asyncio deprecation warnings. The golden capture retained six alerts from 1,001 packets, with the updated ATT&CK labels and an explicitly unmapped SYN+FIN alert.
+
+## Phase 4 — optional anomaly detection (awaiting owner validation)
+
+- Added seeded normal-only and four novel-attack scenarios, per-source/window features, deterministic Isolation Forest training, stored feature metadata, scored explanations, and `--ml` integration. Missing models or dependencies leave signature rules available.
+- Added source and anomaly score fields to alerts, plus dashboard filter and chart. Matching rule/ML windows appear as `rule+ml`; otherwise anomaly alerts are explicitly unmapped.
+- Added source-IP-level comparison for rules, ML and combined with ROC-AUC when defined, and a separate 100,000-packet scoring timer. Owner measurements are PENDING in [ml-results.md](ml-results.md).

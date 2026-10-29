@@ -20,7 +20,7 @@ def _mac_for_ip(seed, ip, variant=0):
     return "02:" + ":".join(f"{octet:02x}" for octet in digest[:5])
 
 
-def generate(seed, normal_packets, handshakes, noisy):
+def generate(seed, normal_packets, handshakes, noisy, normal_only=False, novel_attacks=False):
     """Return packets and labels; fixed IPs keep evaluation easy to explain."""
     rng = random.Random(seed)
     packets = []
@@ -52,6 +52,12 @@ def generate(seed, normal_packets, handshakes, noisy):
         i = len(packets)
         add(Ether() / IP(src=f"10.3.{i % 200}.20", dst="10.2.0.1")
             / UDP(sport=2000 + i % 1000, dport=123) / Raw(load=b"normal"))
+
+    if normal_only:
+        if noisy or novel_attacks:
+            raise ValueError("--normal-only cannot be combined with attack or noisy modes")
+        return packets, {"seed": seed, "normal_packets": normal_packets,
+                         "noisy_normal": False, "attackers": []}
 
     def attack(ip, kind, items):
         start = len(packets)
@@ -85,6 +91,22 @@ def generate(seed, normal_packets, handshakes, noisy):
             add(Ether() / IP(src="10.0.0.203", dst="10.2.0.1") / UDP(dport=53)
                 / DNS(rd=1, qd=DNSQR(qname="large-legitimate.example.test"))
                 / Raw(load=b"z" * 90))
+    if novel_attacks:
+        # None meets the current six signature-rule conditions by construction.
+        attack("10.0.0.210", "udp_flood", [Ether() / IP(src="10.0.0.210", dst="10.2.0.1")
+               / UDP(dport=9000) / Raw(load=b"u" * 100) for _ in range(100)])
+        attack("10.0.0.211", "host_sweep", [Ether() / IP(src="10.0.0.211", dst=f"10.2.0.{i}")
+               / UDP(dport=443) for i in range(1, 31)])
+        attack("10.0.0.212", "multi_host_syn_scan", [Ether() / IP(src="10.0.0.212",
+               dst=f"10.2.1.{i}") / TCP(sport=40000 + i, dport=443, flags="S")
+               for i in range(1, 41)])
+        slow = [Ether() / IP(src="10.0.0.213", dst="10.2.0.1")
+                / TCP(sport=50000 + i, dport=2000 + i, flags="S") for i in range(12)]
+        attack("10.0.0.213", "slow_scan", slow)
+        for i, packet in enumerate(packets[-len(slow):]):
+            packet.time = float(packets[-len(slow) - 1].time) + (i + 1) * 65
+        labels[-1]["start"] = float(packets[-len(slow)].time)
+        labels[-1]["end"] = float(packets[-1].time)
     return packets, {"seed": seed, "normal_packets": normal_packets,
                      "noisy_normal": noisy, "attackers": labels}
 
@@ -96,9 +118,12 @@ def main():
     parser.add_argument("--packets", type=int, default=1000, help="Normal packet count")
     parser.add_argument("--normal-handshakes", type=int, default=50)
     parser.add_argument("--noisy-normal", action="store_true")
+    parser.add_argument("--normal-only", action="store_true", help="Training capture with no attacks")
+    parser.add_argument("--novel-attacks", action="store_true", help="Add four unseen attack patterns")
     parser.add_argument("--output", type=Path, default=Path("generated_traffic.pcap"))
     args = parser.parse_args()
-    packets, truth = generate(args.seed, args.packets, args.normal_handshakes, args.noisy_normal)
+    packets, truth = generate(args.seed, args.packets, args.normal_handshakes,
+                              args.noisy_normal, args.normal_only, args.novel_attacks)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     wrpcap(str(args.output), packets)
     sidecar = args.output.with_name("ground_truth.json")

@@ -21,6 +21,7 @@ def test_flood_metadata_and_severity(connections_db):
     assert row["ipdst"] == "10.0.0.20"
     assert row["count"] == 150
     assert row["severity"] == "medium"
+    assert row["source"] == "rule"
     assert len(row["alert_id"]) == 12
     assert row["first_seen"] <= row["last_seen"]
     assert row["alert_id"] == build_alerts(con, enrich=False).iloc[0]["alert_id"]

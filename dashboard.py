@@ -189,6 +189,10 @@ st.subheader("Alerts")
 types = sorted(alerts["detection_type"].unique())
 selected = st.multiselect("Filter by attack type", types, default=types)
 visible_alerts = alerts[alerts["detection_type"].isin(selected)]
+if "source" in visible_alerts.columns:
+    sources = sorted(visible_alerts["source"].dropna().unique())
+    source_filter = st.multiselect("Filter by source", sources, default=sources)
+    visible_alerts = visible_alerts[visible_alerts["source"].isin(source_filter)]
 if "severity" in visible_alerts.columns:
     colors = {"low": "#d9f2dc", "medium": "#fff0bd", "high": "#ffd6d6"}
     styled = visible_alerts.style.map(
@@ -212,6 +216,11 @@ with right:
     )
     if not proto.empty:
         st.bar_chart(proto.set_index("protocol"))
+
+if "anomaly_score" in alerts.columns and alerts["anomaly_score"].notna().any():
+    st.subheader("Anomaly scores (higher means more unusual)")
+    st.bar_chart(alerts.loc[alerts["anomaly_score"].notna(),
+                            ["ipsrc", "anomaly_score"]].set_index("ipsrc"))
 
 # ---------------------------------------------------------------------------
 # Phase 1.2 — Geographic Map

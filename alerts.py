@@ -14,7 +14,7 @@ from enrichment import enrich_alerts, persist_ip_reputation
 from config import Thresholds
 
 COLUMNS = ["ipsrc", "detection_type", "mitre_technique", "details"]
-DETAIL_COLUMNS = ["alert_id", "ipdst", "first_seen", "last_seen", "count", "window_start", "severity"]
+DETAIL_COLUMNS = ["alert_id", "ipdst", "first_seen", "last_seen", "count", "window_start", "severity", "source", "anomaly_score"]
 
 # Tunable thresholds: a few SYNs to 1-2 ports is normal browsing, not an attack
 SCAN_MIN_PORTS = Thresholds().scan_min_ports
@@ -69,7 +69,10 @@ def _add_alert_metadata(con, alerts_df, cfg):
                         "ipdst": victim, "first_seen": first, "last_seen": last,
                         "count": int(row["rule_count"]), "window_start": window_start,
                         "severity": _severity(float(row["severity_ratio"]))})
-    return pd.concat([alerts_df[COLUMNS].reset_index(drop=True), pd.DataFrame(records)], axis=1)
+    result = pd.concat([alerts_df[COLUMNS].reset_index(drop=True), pd.DataFrame(records)], axis=1)
+    result["source"] = "rule"
+    result["anomaly_score"] = pd.Series([None] * len(result), dtype="float64")
+    return result
 
 
 def build_alerts(con, enrich: bool = True, include_virustotal: bool = False):
@@ -144,7 +147,10 @@ def build_alerts(con, enrich: bool = True, include_virustotal: bool = False):
 
     parts = [p for p in parts if not p.empty]
     if not parts:
-        return pd.DataFrame(columns=COLUMNS + DETAIL_COLUMNS)
+        empty = pd.DataFrame(columns=COLUMNS + DETAIL_COLUMNS)
+        empty["source"] = pd.Series(dtype="string")
+        empty["anomaly_score"] = pd.Series(dtype="float64")
+        return empty
     alerts_df = pd.concat(parts, ignore_index=True)
     alerts_df = _add_alert_metadata(con, alerts_df, cfg)
     if enrich:

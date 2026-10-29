@@ -68,6 +68,9 @@ def parse_arguments():
         action="store_true",
         help="Skip launching the Streamlit dashboard after analysis",
     )
+    parser.add_argument("--ml", action="store_true", help="Score with a trained anomaly model")
+    parser.add_argument("--model", default="models/isolation_forest.joblib",
+                        help="Local trained ML model path (used with --ml)")
     return parser.parse_args()
 
 
@@ -158,12 +161,27 @@ def ingest_packets(
 def detect_and_enrich(
     db_path: str = DB_PATH,
     enrich: bool = True,
+    use_ml: bool = False,
+    model_path: str = "models/isolation_forest.joblib",
+    pcap_path: str | None = None,
 ) -> pd.DataFrame:
     """Run intrusion detection rules, MITRE ATT&CK tagging, and Threat Intel."""
     print(f"\n[3/4]  Running signature detectors and MITRE ATT&CK mapping...")
     con = duckdb.connect(db_path)
 
     alerts_df = build_alerts(con, enrich=enrich)
+    if use_ml:
+        try:
+            from ml.detect import capture_hash, score
+            from ml.integrate import merge_alerts
+            from config import Thresholds
+            packet_rows = con.execute("SELECT * FROM connections").df()
+            start = float(packet_rows["timestamp"].min())
+            sha = capture_hash(pcap_path) if pcap_path and os.path.isfile(pcap_path) else None
+            scored = score(packet_rows, model_path, capture_sha256=sha)
+            alerts_df = merge_alerts(alerts_df, scored, Thresholds.from_env().window_seconds, start)
+        except (ImportError, FileNotFoundError, RuntimeError, ValueError) as exc:
+            print(f"[!] ML unavailable: {exc}. Continuing with rule alerts.")
 
     if alerts_df.empty:
         print("[i] Traffic clean. No intrusion alerts raised.")
@@ -240,6 +258,9 @@ def main():
     detect_and_enrich(
         db_path=args.db,
         enrich=not args.no_enrich,
+        use_ml=args.ml,
+        model_path=args.model,
+        pcap_path=pcap_path if mode == "pcap" else None,
     )
 
     # Step 4: Launch Dashboard
