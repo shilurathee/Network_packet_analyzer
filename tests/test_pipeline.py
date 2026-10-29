@@ -10,6 +10,7 @@ import pandas as pd
 from scapy.all import ARP, ICMP, IP, TCP, UDP, Ether, wrpcap
 
 from alerts import build_alerts
+from mitre_mapping import MITRE_MAP, mitre_label
 from scapy_scan import process_pcap
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +38,21 @@ def test_golden_capture(connections_db):
     actual = set(zip(alerts["ipsrc"], alerts["detection_type"]))
     assert len(alerts) == 6
     assert actual == EXPECTED
+    assert dict(zip(alerts["detection_type"], alerts["mitre_technique"])) == {
+        kind: mitre_label(kind) for _, kind in EXPECTED
+    }
+
+
+def test_mitre_mapping_has_verified_fields_and_no_false_firewall_tag():
+    for kind in (kind for _, kind in EXPECTED):
+        entry = MITRE_MAP[kind]
+        assert set(entry) == {"technique_id", "name", "tactic", "url", "confidence"}
+        assert entry["confidence"] in {"exact", "approximate"}
+        if entry["technique_id"]:
+            assert entry["url"].startswith("https://attack.mitre.org/techniques/")
+            assert entry["technique_id"] in mitre_label(kind)
+    assert MITRE_MAP["malformed_flags"]["technique_id"] is None
+    assert "Unmapped" in mitre_label("malformed_flags")
 
 
 def test_clean_capture_has_no_alerts(tmp_path, connections_db):

@@ -49,8 +49,14 @@
 - Conflicting MACs and the claimed victim IP appear in alert details, and the claimed IP populates the alert victim field. Conflicts must occur within one capture-relative window.
 - Owner terminal: 52 tests passed (8 dashboard deprecation warnings), and the golden capture retained six alerts from 1,001 packets with the expected expanded ARP details.
 
-## Phase 3.6 — DNS signals (awaiting validation)
+## Phase 3.6 — DNS signals (validated)
 
 - Parser adds `dns_qname` and `dns_qtype`. Large DNS packets now need a long first label, high label entropy, or several distinct subdomains to the same approximate base domain within a window. Optional `DNS_ALLOWLIST` excludes known noisy domains.
-- Added tests for size boundaries, repeated large legitimate queries, distinct subdomains and allowlisting. The old Phase 2 evaluation numbers remain historical until the owner reruns both datasets on this branch.
+- Added tests for size boundaries, repeated large legitimate queries, distinct subdomains and allowlisting. Owner terminal: 56 passed, 211 warnings (8 dashboard, 203 Scapy DNS deprecations), six golden alerts from 1,001 packets. Both evaluation sets retained TP 1 and FN 0 for all six detectors; noisy DNS FP fell from 1 to 0, while port scan and ICMP remained FP 1 each. See [results.md](results.md).
 - The two-label base-domain approximation can misgroup public suffixes, and small or repetitive tunnels can be missed; no real-world DNS accuracy claim is made.
+
+## Phase 3.7 — ATT&CK mapping v2 (awaiting owner validation)
+
+- Verified technique IDs, official names and tactics against ATT&CK Enterprise v20.0; see [mitre-mapping.md](mitre-mapping.md) for links and the evidence limits of each mapping.
+- Switched to structured mapping metadata and explicitly labelled approximate display mappings. TCP SYN+FIN flags are unmapped because they do not demonstrate firewall tampering. The original four alert columns remain unchanged.
+- Updated DNS question access for Scapy's list field to avoid the new deprecation warnings seen in the owner's Phase 3.6 test run. Dashboard asyncio warnings remain on the Phase 7 cleanup list.

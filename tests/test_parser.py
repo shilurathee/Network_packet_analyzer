@@ -5,6 +5,7 @@ missing values before any detector or external service sees the data.
 """
 
 import pandas as pd
+import warnings
 from scapy.all import ARP, DNS, DNSQR, ICMP, IP, TCP, UDP, Ether, Raw, wrpcap
 
 from scapy_scan import extract_packet_data, process_pcap
@@ -54,3 +55,14 @@ def test_invalid_dns_name_becomes_null():
     df = extract_packet_data([packet])
     assert pd.isna(df.loc[0, "dns_qname"])
     assert pd.isna(df.loc[0, "dns_qtype"])
+
+
+def test_dns_question_access_has_no_scapy_deprecation():
+    packet = (Ether() / IP(src="10.0.0.1", dst="10.0.0.2")
+              / UDP(dport=53) / DNS(qd=DNSQR(qname="valid.example.test")))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        df = extract_packet_data([packet])
+    assert df.loc[0, "dns_qname"] == "valid.example.test"
+    assert not [warning for warning in caught if issubclass(warning.category, DeprecationWarning)
+                and "DNS fields" in str(warning.message)]

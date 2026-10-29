@@ -1,0 +1,14 @@
+# ATT&CK mapping notes
+
+Checked against [MITRE ATT&CK Enterprise v20.0](https://attack.mitre.org/resources/versions/) on 2026-10-29. The `confidence` field describes the correspondence between a rule's observable traffic and a technique's behavior. An **exact** behavior match is not proof of a malicious actor, impact, or completed compromise. The `mitre_technique` display column marks approximate mappings and has no ID for unmapped behavior.
+
+| Detection | ATT&CK technique | Tactic | Confidence | Reason and limits |
+|---|---|---|---|---|
+| SYN flood | [T1499.001 Endpoint Denial of Service: OS Exhaustion Flood](https://attack.mitre.org/techniques/T1499/001/) | Impact | exact | MITRE explicitly describes SYN floods with incomplete handshakes. The rule cannot prove service disruption. |
+| ICMP flood | [T1498.001 Network Denial of Service: Direct Network Flood](https://attack.mitre.org/techniques/T1498/001/) | Impact | approximate | MITRE describes direct floods that commonly use ICMP. Echo counts alone do not prove high network volume or denial of service. |
+| ARP spoofing | [T1557.002 Adversary-in-the-Middle: ARP Cache Poisoning](https://attack.mitre.org/techniques/T1557/002/) | Credential Access, Collection | approximate | Conflicting IP-to-MAC claims suggest spoofing but cannot establish poisoned caches or interception. |
+| Internal port scan | [T1046 Network Service Discovery](https://attack.mitre.org/techniques/T1046/) | Discovery | approximate | The synthetic source and destinations are on a private network. The same SYN pattern could be legitimate; [T1595 Active Scanning](https://attack.mitre.org/techniques/T1595/) instead describes pre-compromise reconnaissance of victim infrastructure. The rule cannot infer compromise or intent. |
+| DNS tunneling signal | [T1071.004 Application Layer Protocol: DNS](https://attack.mitre.org/techniques/T1071/004/) | Command and Control | approximate | The rule sees DNS query patterns, not C2 content. [T1572 Protocol Tunneling](https://attack.mitre.org/techniques/T1572/) requires evidence of a protocol carried inside another; [T1048 Exfiltration Over Alternative Protocol](https://attack.mitre.org/techniques/T1048/) requires evidence of stolen data leaving via a different protocol. Neither is established by these packets. |
+| Malformed SYN+FIN flags | Unmapped | — | approximate | Invalid TCP flag combinations have no specific ATT&CK technique. The old T1562.004 firewall label implied tampering with defenses without evidence; [T1686 Disable or Modify System Firewall](https://attack.mitre.org/techniques/T1686/) describes actual firewall configuration changes, so no ID is assigned. |
+
+Technique URLs and names were checked against the current Enterprise catalog; revisit the mapping when ATT&CK changes. Existing persisted four-column alert tables remain readable; the next analysis replaces their rows with the updated labels.

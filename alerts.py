@@ -9,7 +9,7 @@ from detector import (
     detect_dns_tunneling,
     detect_malformed_flags,
 )
-from mitre_mapping import MITRE_MAP
+from mitre_mapping import mitre_label
 from enrichment import enrich_alerts, persist_ip_reputation
 from config import Thresholds
 
@@ -25,7 +25,7 @@ def _finish(df, detection_type):
     """Stamp the detection name + MITRE ID, keep only the common columns."""
     df = df.copy()
     df["detection_type"] = detection_type
-    df["mitre_technique"] = MITRE_MAP[detection_type]
+    df["mitre_technique"] = mitre_label(detection_type)
     if "window_bucket" not in df:
         df["window_bucket"] = None
     return df[COLUMNS + ["window_bucket", "rule_count", "severity_ratio"]]

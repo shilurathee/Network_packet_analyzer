@@ -81,11 +81,15 @@ def extract_packet_data(packets) -> pd.DataFrame:
             arp_hwdst.append(None)
             arp_pdst.append(None)
 
-        if packet.haslayer(DNS) and packet[DNS].qd:
+        # Scapy 2.8 exposes qd as a PacketListField; .qd emits a deprecation
+        # warning and will no longer mean the first question in future versions.
+        questions = packet[DNS].getfieldval("qd") if packet.haslayer(DNS) else []
+        if questions:
             try:
-                name = packet[DNS].qd.qname.decode("ascii").rstrip(".").lower()
+                question = questions[0] if isinstance(questions, list) else questions
+                name = question.qname.decode("ascii").rstrip(".").lower()
                 dns_qname.append(name)
-                dns_qtype.append(int(packet[DNS].qd.qtype))
+                dns_qtype.append(int(question.qtype))
             except (AttributeError, UnicodeDecodeError, ValueError, TypeError):
                 dns_qname.append(None)
                 dns_qtype.append(None)
