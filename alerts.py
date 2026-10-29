@@ -10,12 +10,13 @@ from detector import (
 )
 from mitre_mapping import MITRE_MAP
 from enrichment import enrich_alerts, persist_ip_reputation
+from config import Thresholds
 
 COLUMNS = ["ipsrc", "detection_type", "mitre_technique", "details"]
 
 # Tunable thresholds: a few SYNs to 1-2 ports is normal browsing, not an attack
-SCAN_MIN_PORTS = 10    # touching 10+ different ports = port scan
-FLOOD_MIN_SYNS = 50    # 50+ lone SYNs to a single port = SYN flood
+SCAN_MIN_PORTS = Thresholds().scan_min_ports
+FLOOD_MIN_SYNS = Thresholds().flood_min_syns
 
 
 def _finish(df, detection_type):
@@ -27,6 +28,7 @@ def _finish(df, detection_type):
 
 
 def build_alerts(con, enrich: bool = True, include_virustotal: bool = False):
+    cfg = Thresholds.from_env()
     parts = []
 
     #  Port scan vs SYN flood (classified by unique_ports) 
@@ -36,20 +38,24 @@ def build_alerts(con, enrich: bool = True, include_virustotal: bool = False):
             syn["total_syns"].astype(str) + " SYNs to "
             + syn["unique_ports"].astype(str) + " port(s)"
         )
-        flood = syn[(syn["unique_ports"] == 1) & (syn["total_syns"] > FLOOD_MIN_SYNS)]
-        scan = syn[syn["unique_ports"] >= SCAN_MIN_PORTS]
+        flood = syn[(syn["unique_ports"] == 1) & (syn["total_syns"] > cfg.flood_min_syns)]
+        scan = syn[syn["unique_ports"] >= cfg.scan_min_ports]
+        flood = flood.sort_values("total_syns", ascending=False).drop_duplicates("ipsrc")
+        scan = scan.sort_values("unique_ports", ascending=False).drop_duplicates("ipsrc")
         parts.append(_finish(flood, "syn_flood"))
         parts.append(_finish(scan, "port_scan"))
 
     # --- ICMP flood ---
     icmp = detect_icmp_flood(con)
     if not icmp.empty:
+        icmp = icmp.sort_values("icmp_count", ascending=False).drop_duplicates("ipsrc")
         icmp["details"] = icmp["icmp_count"].astype(str) + " ICMP echo requests"
         parts.append(_finish(icmp, "icmp_flood"))
 
     # --- ARP spoofing (the IP being faked is the "source" here) ---
     arp = detect_arp_spoofing(con).rename(columns={"arp_psrc": "ipsrc"})
     if not arp.empty:
+        arp = arp.sort_values("mac_count", ascending=False).drop_duplicates("ipsrc")
         arp["details"] = "IP claimed by " + arp["mac_count"].astype(str) + " different MACs"
         parts.append(_finish(arp, "arp_spoofing"))
 

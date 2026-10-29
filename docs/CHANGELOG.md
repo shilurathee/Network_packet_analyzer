@@ -24,3 +24,9 @@
 - Avoid the GeoLite2 warning during `tools/*` commands; the tools should not import enrichment at module import time.
 - Investigate AppTest's "missing ScriptRunContext" log noise without hiding real errors.
 - Local validation uses Python 3.14.7; verify supported versions and deprecations during packaging.
+
+## Phase 3.1 — threshold configuration and time windows (awaiting validation)
+
+- Added immutable threshold settings with environment overrides; defaults preserve the existing cutoffs.
+- SYN, ICMP and ARP aggregation now uses capture-relative 60-second windows; each source keeps its strongest qualifying window. DNS size and malformed-flag rules retain their per-packet behavior.
+- Added tests contrasting a short SYN burst with the same SYN count spread across ten minutes. The six-alert golden test and the evaluation tool still need to be run by the project owner before continuing Phase 3.

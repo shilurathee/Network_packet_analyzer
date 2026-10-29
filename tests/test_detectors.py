@@ -4,11 +4,10 @@ Rows use the real connections schema. Tests call detector.py and alerts.py
 without changing production thresholds or making network requests.
 """
 
-from inspect import signature
-
 import pytest
 
 from alerts import FLOOD_MIN_SYNS, SCAN_MIN_PORTS, build_alerts
+from config import Thresholds
 from detector import (
     detect_arp_spoofing,
     detect_dns_tunneling,
@@ -17,8 +16,8 @@ from detector import (
     detect_port_scan_and_syn_flood,
 )
 
-ICMP_MIN = signature(detect_icmp_flood).parameters["threshold"].default
-DNS_MIN_SIZE = signature(detect_dns_tunneling).parameters["size_threshold"].default
+ICMP_MIN = Thresholds().icmp_min
+DNS_MIN_SIZE = Thresholds().dns_min_size
 
 
 def syn_rows(count, ports):
