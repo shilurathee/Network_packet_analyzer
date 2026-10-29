@@ -12,3 +12,15 @@
 - Explicit `--pcap` and `--live` skip the interactive menu. Removed the automatic VirusTotal CLI option.
 - GeoIP tests: five passed on the project owner's terminal (reported 2026-10-28).
 - **Map validation: PENDING.** The GeoLite2 database has not been added yet. A map screenshot and on-demand VirusTotal UI validation are still needed; no demo database was used.
+
+## Phase 2B — measured evaluation and benchmark
+
+- Owner terminal: 39 tests passed with 8 warnings in 33.50 seconds; seeded baseline 1,088 packets and noisy-normal 1,128. See [results.md](results.md) for per-detector scores and hypotheses for the three false positives.
+- The five-run benchmark medians are in [benchmarks.md](benchmarks.md). Parser time was collected while `tracemalloc` was active, so a clean timing rerun is required after separating timing and memory passes.
+
+## Phase 7 cleanup list
+
+- Address the `asyncio` deprecation in `dashboard.py` around line 27.
+- Avoid the GeoLite2 warning during `tools/*` commands; the tools should not import enrichment at module import time.
+- Investigate AppTest's "missing ScriptRunContext" log noise without hiding real errors.
+- Local validation uses Python 3.14.7; verify supported versions and deprecations during packaging.
