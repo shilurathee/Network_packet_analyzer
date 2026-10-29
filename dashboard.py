@@ -188,7 +188,15 @@ if alerts.empty:
 st.subheader("Alerts")
 types = sorted(alerts["detection_type"].unique())
 selected = st.multiselect("Filter by attack type", types, default=types)
-st.dataframe(alerts[alerts["detection_type"].isin(selected)], hide_index=True)
+visible_alerts = alerts[alerts["detection_type"].isin(selected)]
+if "severity" in visible_alerts.columns:
+    colors = {"low": "#d9f2dc", "medium": "#fff0bd", "high": "#ffd6d6"}
+    styled = visible_alerts.style.map(
+        lambda value: f"background-color: {colors.get(value, '')}", subset=["severity"]
+    )
+    st.dataframe(styled, hide_index=True)
+else:
+    st.dataframe(visible_alerts, hide_index=True)
 
 # ---------------------------------------------------------------------------
 # Charts

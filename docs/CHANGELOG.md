@@ -35,3 +35,9 @@
 
 - The SYN detector now compares each SYN to an ACK from the same source and TCP flow inside its capture window. A flood requires more than 50 incomplete SYNs to one port and a completion rate below 10%; the other rule thresholds stay the same.
 - Added tests for no ACKs, matching ACKs, the completion-rate boundary and an unrelated ACK. Missing packets or asymmetric captures can still make a legitimate flow appear incomplete.
+
+## Phase 3.3–3.4 — severity and richer alerts (awaiting validation)
+
+- Added severity from distance above each rule's existing cutoff and colour-coded it in the dashboard.
+- Added stable alert ID, victim IP, first/last observed times, count and window start while retaining the original four alert fields.
+- Existing alerts tables gain missing columns before current-run rows are replaced. Tests cover the new fields and an older four-column table.
