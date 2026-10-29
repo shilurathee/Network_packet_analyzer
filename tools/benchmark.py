@@ -39,7 +39,7 @@ DETECTORS = {
 
 
 def synthetic_rows(count):
-    """Build a representative 15-column table without slow Scapy generation."""
+    """Build a representative connections table without slow Scapy generation."""
     i = pd.Series(range(count))
     df = pd.DataFrame({
         "timestamp": 1_700_000_000.0 + i * 0.01,
@@ -57,6 +57,9 @@ def synthetic_rows(count):
         "arp_psrc": pd.Series([None] * count, dtype="string"),
         "arp_hwdst": pd.Series([None] * count, dtype="string"),
         "arp_pdst": pd.Series([None] * count, dtype="string"),
+        "arp_op": pd.Series([None] * count, dtype="Int64"),
+        "dns_qname": pd.Series([None] * count, dtype="string"),
+        "dns_qtype": pd.Series([None] * count, dtype="Int64"),
     })
     # A tiny flagged tail makes AppTest exercise the full dashboard, not st.stop().
     df.loc[df.index[-51:], ["ipsrc", "tcpflags", "tcpdst"]] = ["10.0.0.66", "S", 80]

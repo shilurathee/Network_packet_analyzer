@@ -1,4 +1,6 @@
 import duckdb
+import math
+from collections import Counter
 from config import Thresholds
 
 # Anchor windows at the first packet, so short reference captures do not
@@ -78,20 +80,56 @@ def detect_arp_spoofing(con, window_seconds=None):
     """, [window_seconds, cfg.arp_min_macs]).df()
 
 
+def _dns_entropy(label):
+    """Measure Shannon entropy of the first DNS label without dependencies."""
+    if not label:
+        return 0.0
+    counts = Counter(label)
+    return -sum((n / len(label)) * math.log2(n / len(label)) for n in counts.values())
+
+
 def detect_dns_tunneling(con, size_threshold=None):
-    """DNS traffic (udp port 53) with abnormally large packet size -
-       normal lookups are small; tunneled data inflates packet length."""
-    size_threshold = (Thresholds.from_env().dns_min_size
-                      if size_threshold is None else int(size_threshold))
-    return con.execute("""
+    """Require large DNS packets plus a long, varied, or high-entropy subdomain.
+
+    Two-label base domains are an approximation; unusual legitimate DNS can
+    still alert, while tunneling with small or repetitive names may be missed.
+    """
+    cfg = Thresholds.from_env()
+    size_threshold = cfg.dns_min_size if size_threshold is None else int(size_threshold)
+    candidates = con.execute(f"""{WINDOW_CTE}
         SELECT ipsrc,
                udpdst,
-               packet_length
-        FROM connections
+               packet_length,
+               dns_qname,
+               window_bucket
+        FROM stamped
         WHERE udpdst = 53
           AND packet_length > ?
+          AND dns_qname IS NOT NULL
         ORDER BY packet_length DESC
-    """, [size_threshold]).df()
+    """, [cfg.window_seconds, size_threshold]).df()
+    if candidates.empty:
+        return candidates
+    candidates = candidates.copy()
+    candidates["first_label"] = candidates["dns_qname"].str.split(".").str[0]
+    candidates["base_domain"] = candidates["dns_qname"].map(
+        lambda name: ".".join(name.split(".")[-2:])
+    )
+    candidates = candidates[~candidates["dns_qname"].map(
+        lambda name: any(name == domain or name.endswith("." + domain)
+                         for domain in cfg.dns_allowlist)
+    )].copy()
+    if candidates.empty:
+        return candidates
+    candidates["entropy"] = candidates["first_label"].map(_dns_entropy)
+    candidates["distinct_subdomains"] = candidates.groupby(
+        ["ipsrc", "window_bucket", "base_domain"]
+    )["first_label"].transform("nunique")
+    return candidates[
+        (candidates["first_label"].str.len() >= cfg.dns_label_min)
+        | (candidates["entropy"] >= cfg.dns_entropy_min)
+        | (candidates["distinct_subdomains"] >= cfg.dns_distinct_subdomains)
+    ].copy()
 
 
 def detect_malformed_flags(con):

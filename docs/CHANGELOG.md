@@ -43,7 +43,14 @@
 - Existing alerts tables gain missing columns before current-run rows are replaced. Tests cover the new fields and an older four-column table.
 - Owner terminal: 49 tests passed (8 dashboard deprecation warnings); the golden capture retained six alerts from 1,001 packets.
 
-## Phase 3.5 — ARP context (awaiting validation)
+## Phase 3.5 — ARP context (validated)
 
 - The parser now records `arp_op` as an additional column. ARP probes with source protocol address `0.0.0.0` are excluded.
 - Conflicting MACs and the claimed victim IP appear in alert details, and the claimed IP populates the alert victim field. Conflicts must occur within one capture-relative window.
+- Owner terminal: 52 tests passed (8 dashboard deprecation warnings), and the golden capture retained six alerts from 1,001 packets with the expected expanded ARP details.
+
+## Phase 3.6 — DNS signals (awaiting validation)
+
+- Parser adds `dns_qname` and `dns_qtype`. Large DNS packets now need a long first label, high label entropy, or several distinct subdomains to the same approximate base domain within a window. Optional `DNS_ALLOWLIST` excludes known noisy domains.
+- Added tests for size boundaries, repeated large legitimate queries, distinct subdomains and allowlisting. The old Phase 2 evaluation numbers remain historical until the owner reruns both datasets on this branch.
+- The two-label base-domain approximation can misgroup public suffixes, and small or repetitive tunnels can be missed; no real-world DNS accuracy claim is made.

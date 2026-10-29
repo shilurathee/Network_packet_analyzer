@@ -2,7 +2,7 @@
 scapy_scan.py — Packet capture and header extraction.
 
 What it does:
-  Reads a .pcap (or sniffs live traffic) with Scapy and returns a 16-column
+  Reads a .pcap (or sniffs live traffic) with Scapy and returns an 18-column
   pandas DataFrame matching the `connections` table contract.
 
 Why it exists:
@@ -12,7 +12,7 @@ Why it exists:
 Inputs:  path to a .pcap, or live sniff arguments.
 Outputs: DataFrame with timestamp, protocol, packet_length, ipsrc, ipdst,
          tcpsrc, tcpdst, tcpflags, udpsrc, udpdst, icmp_type,
-         arp_hwsrc, arp_psrc, arp_hwdst, arp_pdst, arp_op.
+         arp_hwsrc, arp_psrc, arp_hwdst, arp_pdst, arp_op, dns_qname, dns_qtype.
 
 Windows: Npcap with AdminOnly=1 requires an Administrator terminal for
 `from scapy.all import ...` (even for offline files) and for live sniff.
@@ -20,7 +20,7 @@ Windows: Npcap with AdminOnly=1 requires an Administrator terminal for
 import time
 import pandas as pd
 from typing import Optional, List
-from scapy.all import rdpcap, sniff, wrpcap, IP, TCP, UDP, ARP, ICMP
+from scapy.all import rdpcap, sniff, wrpcap, IP, TCP, UDP, ARP, ICMP, DNS
 
 
 def extract_packet_data(packets) -> pd.DataFrame:
@@ -31,6 +31,7 @@ def extract_packet_data(packets) -> pd.DataFrame:
     icmp_type = []
     arp_hwsrc, arp_psrc, arp_hwdst, arp_pdst = [], [], [], []
     arp_op = []
+    dns_qname, dns_qtype = [], []
     timestamp = []
     packet_length = []
     protocol = []
@@ -80,6 +81,18 @@ def extract_packet_data(packets) -> pd.DataFrame:
             arp_hwdst.append(None)
             arp_pdst.append(None)
 
+        if packet.haslayer(DNS) and packet[DNS].qd:
+            try:
+                name = packet[DNS].qd.qname.decode("ascii").rstrip(".").lower()
+                dns_qname.append(name)
+                dns_qtype.append(int(packet[DNS].qd.qtype))
+            except (AttributeError, UnicodeDecodeError, ValueError, TypeError):
+                dns_qname.append(None)
+                dns_qtype.append(None)
+        else:
+            dns_qname.append(None)
+            dns_qtype.append(None)
+
         if packet.haslayer(TCP):
             protocol.append("TCP")
         elif packet.haslayer(UDP):
@@ -108,11 +121,13 @@ def extract_packet_data(packets) -> pd.DataFrame:
         "arp_hwdst": arp_hwdst,
         "arp_pdst": arp_pdst,
         "arp_op": arp_op,
+        "dns_qname": dns_qname,
+        "dns_qtype": dns_qtype,
     }
 
     dataframe = pd.DataFrame(dictionary)
     # Explicitly enforce string dtypes so DuckDB never infers INT32 for empty/NULL columns
-    for col in ["protocol", "ipsrc", "ipdst", "tcpflags", "arp_hwsrc", "arp_psrc", "arp_hwdst", "arp_pdst"]:
+    for col in ["protocol", "ipsrc", "ipdst", "tcpflags", "arp_hwsrc", "arp_psrc", "arp_hwdst", "arp_pdst", "dns_qname"]:
         dataframe[col] = dataframe[col].astype("string")
 
     return dataframe

@@ -136,13 +136,41 @@ def test_arp_mac_change_in_different_windows_is_not_conflict(connections_db):
     (DNS_MIN_SIZE - 1, False), (DNS_MIN_SIZE, False), (DNS_MIN_SIZE + 1, True),
 ])
 def test_dns_size_boundary(connections_db, size, expected):
-    """Only UDP destination 53 packets over 100 bytes qualify."""
+    """Large packets with a long label cross the size cutoff at 101."""
     con = connections_db([
-        {"ipsrc": "10.0.0.5", "protocol": "UDP", "udpdst": 53, "packet_length": size},
+        {"ipsrc": "10.0.0.5", "protocol": "UDP", "udpdst": 53,
+         "dns_qname": "x" * 45 + ".example.test", "packet_length": size},
         {"ipsrc": "10.0.0.5", "protocol": "UDP", "udpdst": 123, "packet_length": 200},
     ])
     assert (not detect_dns_tunneling(con).empty) is expected
     assert ("dns_tunneling" in set(build_alerts(con, enrich=False)["detection_type"])) is expected
+
+
+def test_large_repeated_legitimate_dns_is_not_flagged(connections_db):
+    """Size alone no longer flags the noisy-normal DNS scenario."""
+    rows = [{"timestamp": 1000 + i, "ipsrc": "10.0.0.203", "protocol": "UDP",
+             "udpdst": 53, "packet_length": 150,
+             "dns_qname": "large-legitimate.example.test"} for i in range(3)]
+    con = connections_db(rows)
+    assert detect_dns_tunneling(con).empty
+
+
+def test_distinct_subdomains_can_flag_large_dns(connections_db):
+    """Several short unique labels to one base domain count within a window."""
+    rows = [{"timestamp": 1000 + i, "ipsrc": "10.0.0.88", "protocol": "UDP",
+             "udpdst": 53, "packet_length": 150,
+             "dns_qname": f"sub{i}.example.test"} for i in range(5)]
+    con = connections_db(rows)
+    assert len(detect_dns_tunneling(con)) == 5
+
+
+def test_dns_allowlist_overrides_suspicious_name(connections_db, monkeypatch):
+    """Optional allowlist suppresses a known noisy base domain."""
+    monkeypatch.setenv("DNS_ALLOWLIST", "example.test")
+    con = connections_db([{"ipsrc": "10.0.0.88", "protocol": "UDP", "udpdst": 53,
+                           "packet_length": 150,
+                           "dns_qname": "x" * 45 + ".example.test"}])
+    assert detect_dns_tunneling(con).empty
 
 
 @pytest.mark.parametrize("flags,expected", [("S", False), ("F", False), ("FS", True)])

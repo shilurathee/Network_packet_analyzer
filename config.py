@@ -19,6 +19,10 @@ class Thresholds:
     arp_min_macs: int = 2
     window_seconds: int = 60
     syn_max_completion_rate: float = 0.10
+    dns_entropy_min: float = 3.5
+    dns_label_min: int = 40
+    dns_distinct_subdomains: int = 5
+    dns_allowlist: tuple[str, ...] = ()
 
     @classmethod
     def from_env(cls):
@@ -28,7 +32,10 @@ class Thresholds:
         for name in defaults.__dataclass_fields__:
             raw = os.getenv(name.upper())
             default = getattr(defaults, name)
-            values[name] = type(default)(raw) if raw is not None else default
+            if name == "dns_allowlist" and raw is not None:
+                values[name] = tuple(item.strip().lower() for item in raw.split(",") if item.strip())
+            else:
+                values[name] = type(default)(raw) if raw is not None else default
         if values["window_seconds"] <= 0:
             raise ValueError("WINDOW_SECONDS must be positive")
         if not 0 <= values["syn_max_completion_rate"] <= 1:
