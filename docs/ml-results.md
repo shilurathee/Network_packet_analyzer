@@ -1,14 +1,18 @@
-# Phase 4 owner-run ML results — partial
+# Phase 4 owner-run ML results — first model (historical)
 
 Training: a separate `--normal-only` capture with a different seed. Evaluation: labelled baseline, noisy-normal and novel-attack captures. Metrics count **source IPs**, not packets; ROC-AUC requires both positive and negative sources. Model scores are normalised against training-score min/max, and the 99th percentile of training anomaly scores is the default flag threshold.
 
 | Capture | Method | TP | FP | FN | Precision | Recall | F1 | ROC-AUC |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| Clean | Rules | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Clean | ML | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Clean | Combined | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Baseline | Rules / ML / Combined | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Noisy | Rules / ML / Combined | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
+| Clean (1,000 packets) | Rules | 0 | 0 | 0 | 0.0 | 0.0 | 0.0 | null |
+| Clean (1,000 packets) | ML | 0 | 1 | 0 | 0.0 | 0.0 | 0.0 | null |
+| Clean (1,000 packets) | Combined | 0 | 1 | 0 | 0.0 | 0.0 | 0.0 | null |
+| Baseline (1,088 packets) | Rules | 6 | 0 | 0 | 1.0 | 1.0 | 1.0 | 1.0 |
+| Baseline (1,088 packets) | ML | 0 | 1 | 6 | 0.0 | 0.0 | 0.0 | 0.9163346613545816 |
+| Baseline (1,088 packets) | Combined | 6 | 1 | 0 | 0.8571428571428571 | 1.0 | 0.923076923076923 | 0.99800796812749 |
+| Noisy (1,128 packets) | Rules | 6 | 2 | 0 | 0.75 | 1.0 | 0.8571428571428571 | 0.9960629921259843 |
+| Noisy (1,128 packets) | ML | 0 | 1 | 6 | 0.0 | 0.0 | 0.0 | 0.9094488188976378 |
+| Noisy (1,128 packets) | Combined | 6 | 3 | 0 | 0.6666666666666666 | 1.0 | 0.8 | 0.9940944881889764 |
 | Novel (1,270 packets) | Rules | 6 | 0 | 4 | 1.0 | 0.6 | 0.7499999999999999 | 0.8 |
 | Novel (1,270 packets) | ML | 0 | 1 | 10 | 0.0 | 0.0 | 0.0 | 0.9418326693227091 |
 | Novel (1,270 packets) | Combined | 6 | 1 | 4 | 0.8571428571428571 | 0.6 | 0.7058823529411764 | 0.9908366533864542 |
@@ -26,4 +30,10 @@ The diagnostic rerun used raw cutoff **0.7295976443219502**. All four novel atta
 
 The unlabelled normal server **10.2.0.1** scored **0.8933762216288652** and was flagged. Thus lowering a single global cutoff enough to catch even the highest-scoring novel attacker would still flag that server. This is a limitation of the present model/training distribution; the only verified result is the owner's synthetic run. The diagnostic test rerun passed **63** tests with **8** dashboard asyncio deprecation warnings. No threshold or model weights were changed in response to these results.
 
-100,000-packet scoring median, excluding parser: **PENDING** seconds across **PENDING** runs on **PENDING** machine. Do not infer that ML improves on the rules until owner-run measurements support it. A trained model should be loaded only from a trusted local path because joblib uses pickle serialization.
+On the clean set there are **zero labelled positives**, so precision/recall/F1 display as `0.0` by the evaluator's convention and ROC-AUC is undefined (`null`); they do not measure attack detection there. On the baseline and noisy captures, ML again found zero attackers and contributed one false positive each. The combined result is worse than rules alone across all three labelled test sets.
+
+The owner measured a **5.940199600001506-second** median over **5** scoring runs on **100,088** parsed packet rows and **3,457** source/windows, excluding PCAP parsing. Machine: Windows-11-10.0.26200-SP0, Python **3.14.7**, Intel64 Family 6 Model 189 Stepping 1 GenuineIntel. This meets the 10-second scoring target for this machine and dataset. Do not infer that ML improves on the rules from the timing result. A trained model should be loaded only from a trusted local path because joblib uses pickle serialization.
+
+## Initiating-source model rerun — PENDING
+
+The next model excludes response-only SYN+ACK source/windows from both training and inference because the first training capture contained just one such normal server. This changes the eligible population and requires retraining; the numbers above describe only the first model. New clean/baseline/noisy/novel scores, false positives, and scoring timing are **PENDING** owner runs. Do not compare this scoped model's results to the historical ones until its excluded population is stated.

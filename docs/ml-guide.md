@@ -4,6 +4,8 @@ The six signature rules remain active without a model. With `--ml`, the pipeline
 
 The model must learn from normal-only traffic. Generate a **separate** training capture with a different seed and an empty attacker list; the CLI rejects a sidecar with labelled attacks or noisy traffic. The model JSON records the feature names/order, training date, training capture SHA-256, window size, normal-score range and 99th-percentile threshold. Inference refuses to score the exact training PCAP. Real normal traffic can be used when the owner can confirm it contains no attacks; a different filename alone does not prevent leakage.
 
+After the first owner-run evaluation, the single normal server that sends only SYN+ACK responses was found to dominate the global cutoff. The current model explicitly covers **traffic-initiating sources**: source/windows with at least five packets that are *all* SYN+ACK responses are excluded from both training and scoring. It does not detect attacks launched by such response-only servers. The 99th-percentile cutoff is unchanged; retrain the model after pulling this change, since old model metadata is rejected. New detection and false-positive measurements are needed before treating this scoped model as useful.
+
 PowerShell in an Administrator terminal (for the existing Npcap setup):
 
 ```powershell

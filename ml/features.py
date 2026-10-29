@@ -27,7 +27,7 @@ def extract_features(packets: pd.DataFrame, window_seconds: int | None = None):
     window_seconds = window_seconds or Thresholds.from_env().window_seconds
     if window_seconds <= 0:
         raise ValueError("window_seconds must be positive")
-    columns = ["ipsrc", "window_start", *FEATURES]
+    columns = ["ipsrc", "window_start", "response_only", *FEATURES]
     if packets.empty:
         return pd.DataFrame(columns=columns)
     data = packets.copy()
@@ -55,6 +55,10 @@ def extract_features(packets: pd.DataFrame, window_seconds: int | None = None):
         lengths = frame["packet_length"]
         records.append({
             "ipsrc": str(ip), "window_start": origin + int(bucket) * window_seconds,
+            # A source sending only SYN+ACK responses is a responder, not an
+            # initiating client. One such server among hundreds of clients
+            # otherwise dominates a single global 99th-percentile cutoff.
+            "response_only": bool(n >= 5 and (flags == "SA").all()),
             "packets": n, "bytes": lengths.sum(), "length_mean": lengths.mean(),
             "length_std": lengths.std(ddof=0), "unique_ports": ports.nunique(),
             "unique_destinations": frame["ipdst"].dropna().nunique(),

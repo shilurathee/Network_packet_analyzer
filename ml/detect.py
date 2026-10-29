@@ -22,9 +22,12 @@ def score(packets, model_path="models/isolation_forest.joblib", capture_sha256=N
     metadata = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
     if metadata["features"] != list(FEATURES):
         raise ValueError("ML model features do not match this version of the parser")
+    if metadata.get("scope") != "initiating_sources_v1":
+        raise ValueError("ML model scope changed; retrain with python -m ml.train --pcap NORMAL.pcap")
     if capture_sha256 and capture_sha256 == metadata["capture_sha256"]:
         raise ValueError("Refusing to score the training capture; use a separate test PCAP")
     features = extract_features(packets, metadata["window_seconds"])
+    features = features.loc[~features["response_only"]].copy()
     matrix = model_matrix(features)
     if matrix.empty:
         return features.assign(anomaly_score=pd.Series(dtype=float),

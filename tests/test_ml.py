@@ -26,13 +26,26 @@ def test_features_are_capture_relative_and_numeric():
     rows = [_row("10.0.0.1", 100.0), _row("10.0.0.1", 100.5, port=80),
             _row("10.0.0.1", 165.0), _row("10.0.0.2", 101.0, "ICMP")]
     features = extract_features(pd.DataFrame(rows), 60)
-    assert list(features.columns) == ["ipsrc", "window_start", *FEATURES]
+    assert list(features.columns) == ["ipsrc", "window_start", "response_only", *FEATURES]
     host = features[features["ipsrc"] == "10.0.0.1"].sort_values("window_start")
     assert host["packets"].tolist() == [2, 1]
     assert host["window_start"].tolist() == [100.0, 160.0]
     assert host.iloc[0]["unique_ports"] == 2
     assert host.iloc[0]["syn_only_ratio"] == 1
     assert model_matrix(features).notna().all().all()
+
+
+def test_response_only_server_is_outside_client_model_scope(tmp_path):
+    rows = [_row(f"10.1.0.{i}", 1000 + i + j * 0.01, port=1000 + j)
+            for i in range(1, 41) for j in range(1 + i % 7)]
+    rows += [_row("10.2.0.1", 1010 + j * 0.01, flags="SA", port=2000 + j)
+             for j in range(50)]
+    packets = pd.DataFrame(rows)
+    model = tmp_path / "client.joblib"
+    metadata = train(packets, model, "normal-capture")
+    assert metadata["response_only_excluded"] == 1
+    assert metadata["normal_examples"] == 40
+    assert "10.2.0.1" not in set(score(packets, model, capture_sha256="separate-capture")["ipsrc"])
 
 
 def test_training_and_scoring_reject_same_capture_and_bad_features(tmp_path):

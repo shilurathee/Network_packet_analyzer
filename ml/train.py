@@ -23,7 +23,11 @@ def train(packets, model_path, capture_sha256, percentile=99.0, window_seconds=6
     if not 0 < percentile < 100:
         raise ValueError("percentile must be between 0 and 100")
     features = extract_features(packets, window_seconds)
-    matrix = model_matrix(features)
+    excluded = int(features["response_only"].sum())
+    # With only one normal server in the seeded capture there is no basis for
+    # learning a server baseline. This first model explicitly covers sources
+    # initiating traffic; response-only sources are outside its scope.
+    matrix = model_matrix(features.loc[~features["response_only"]])
     if len(matrix) < 30:
         raise ValueError("Need at least 30 normal source/window examples for training")
     pipeline = Pipeline([
@@ -44,6 +48,7 @@ def train(packets, model_path, capture_sha256, percentile=99.0, window_seconds=6
     metadata = {
         "features": list(FEATURES), "training_date": datetime.now(timezone.utc).isoformat(),
         "capture_sha256": capture_sha256, "normal_examples": len(matrix),
+        "scope": "initiating_sources_v1", "response_only_excluded": excluded,
         "window_seconds": window_seconds, "percentile": percentile,
         "score_min": low, "score_max": high, "threshold": threshold,
         "raw_threshold": raw_threshold,
