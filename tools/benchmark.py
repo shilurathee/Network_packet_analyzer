@@ -63,15 +63,25 @@ def synthetic_rows(count):
     return df
 
 
-def measure_parser(pcap):
-    """Return wall time, parsed rows and peak traced Python allocation."""
-    tracemalloc.start()
+def measure_parser_time(pcap):
+    """Time parsing without Python allocation tracing overhead."""
+    if tracemalloc.is_tracing():
+        raise RuntimeError("Stop tracemalloc before timing the parser")
     start = time.perf_counter()
     df = process_pcap(str(pcap))
     seconds = time.perf_counter() - start
-    _, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-    return seconds, len(df), peak / (1024 * 1024)
+    return seconds, len(df)
+
+
+def measure_parser_memory(pcap):
+    """Parse again with tracemalloc to measure peak Python allocation."""
+    tracemalloc.start()
+    try:
+        df = process_pcap(str(pcap))
+        _, peak = tracemalloc.get_traced_memory()
+        return len(df), peak / (1024 * 1024)
+    finally:
+        tracemalloc.stop()
 
 
 def measure_db(df, db_path):
@@ -127,7 +137,10 @@ def benchmark(pcap, count, runs):
     df = synthetic_rows(count)
     results = []
     for _ in range(runs):
-        parsed_s, parsed_count, peak_mb = measure_parser(pcap)
+        parsed_s, parsed_count = measure_parser_time(pcap)
+        memory_rows, peak_mb = measure_parser_memory(pcap)
+        if memory_rows != parsed_count:
+            raise RuntimeError("Timed and memory-only parser passes returned different row counts")
         with tempfile.TemporaryDirectory() as folder:
             db_path = Path(folder) / "benchmark.duckdb"
             stages = measure_db(df, db_path)
